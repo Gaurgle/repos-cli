@@ -1,0 +1,361 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+REPO_DIR="${REPO_CHECK_DIR:-$(pwd)}"
+
+YELLOW=$'\033[0;33m'
+GREEN=$'\033[0;32m'
+DIM=$'\033[2m'
+BOLD=$'\033[1m'
+RESET=$'\033[0m'
+
+usage() {
+    cat <<'EOF'
+Usage: repos [options]
+
+Checks GitHub for recently pushed repos and compares with local state.
+Only checks repos found under the current directory (or REPO_CHECK_DIR).
+
+Modes (pick one):
+  (default)       Find the latest time slot with any activity
+  --since DATE    Show all activity since DATE (e.g. 2026-03-15)
+  --today         Show all activity since midnight
+  --all           Show all divergence (no time filter)
+
+Options:
+  -v              Also list repos not cloned locally
+  -h, --help      Show this help
+
+Time slots: Work (09–18), Evening (18–00), Night (00–09)
+Set REPO_CHECK_DIR to override the search directory.
+EOF
+}
+
+# --- Parse args ---
+MODE="auto"
+VERBOSE=false
+SINCE_ARG=""
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --since)  MODE="since"; SINCE_ARG="$2"; shift 2 ;;
+        --today)  MODE="today"; shift ;;
+        --all)    MODE="all"; shift ;;
+        -v)       VERBOSE=true; shift ;;
+        -h|--help) usage; exit 0 ;;
+        *) echo "Unknown: $1"; usage; exit 1 ;;
+    esac
+done
+
+# --- Timezone offset in seconds (for jq) ---
+tz_raw=$(date +%z)
+tz_sign=1
+case "$tz_raw" in -*) tz_sign=-1 ;; esac
+tz_h=$((10#${tz_raw:1:2}))
+tz_m=$((10#${tz_raw:3:2}))
+tz_offset=$(( tz_sign * (tz_h * 3600 + tz_m * 60) ))
+
+# --- One GitHub API call ---
+repos_json=$(gh api graphql -f query='{
+  viewer {
+    repositories(first: 50, orderBy: {field: PUSHED_AT, direction: DESC}) {
+      nodes { name, pushedAt }
+    }
+  }
+}' 2>/dev/null) || { echo "  Failed to reach GitHub. Run: gh auth login"; exit 1; }
+
+# --- Determine which repos to check ---
+active_repos=()
+header=""
+
+if [ "$MODE" = "auto" ]; then
+    # Find the latest time slot with any activity
+    result=$(echo "$repos_json" | jq -r --argjson tz "$tz_offset" '
+      [ .data.viewer.repositories.nodes[]
+        | select(.pushedAt != null)
+        | (.pushedAt | sub("Z$"; "")
+           | strptime("%Y-%m-%dT%H:%M:%S") | mktime + $tz) as $local
+        | ($local | strftime("%Y-%m-%d")) as $date
+        | ($local | strftime("%H") | tonumber) as $h
+        | ( if $h >= 9 and $h < 18 then {k: "1", l: "Work (09-18)"}
+            elif $h >= 18           then {k: "2", l: "Evening (18-00)"}
+            else                         {k: "3", l: "Night (00-09)"} end
+          ) as $slot
+        | {name, slot_id: "\($date)_\($slot.k)",
+           slot_display: "\($date)  \($slot.l)"}
+      ]
+      | group_by(.slot_id)
+      | sort_by(.[0].slot_id)
+      | last
+      | "\(.[0].slot_display)\n\([.[].name] | join("\n"))"
+    ') || true
+
+    if [ -z "$result" ]; then
+        echo ""
+        echo "  ${GREEN}No recent push activity on GitHub.${RESET}"
+        echo ""
+        exit 0
+    fi
+
+    header=$(echo "$result" | head -1)
+    while IFS= read -r name; do
+        [ -n "$name" ] && active_repos+=("$name")
+    done < <(echo "$result" | tail -n +2)
+
+else
+    # Override modes: --since, --today, --all
+    today=$(date +%Y-%m-%d)
+    case "$MODE" in
+        since)
+            cutoff="$SINCE_ARG"
+            case "$cutoff" in ????-??-??) cutoff="${cutoff}T00:00:00" ;; esac
+            header="since $SINCE_ARG" ;;
+        today)
+            cutoff="${today}T00:00:00"
+            header="today" ;;
+        all)
+            cutoff=""
+            header="all divergence" ;;
+    esac
+
+    if [ -n "${cutoff:-}" ]; then
+        if cutoff_epoch=$(date -jf "%Y-%m-%dT%H:%M:%S" "$cutoff" +%s 2>/dev/null); then
+            cutoff_utc=$(date -u -r "$cutoff_epoch" +"%Y-%m-%dT%H:%M:%SZ")
+        elif cutoff_epoch=$(date -d "$cutoff" +%s 2>/dev/null); then
+            cutoff_utc=$(date -u -d "@$cutoff_epoch" +"%Y-%m-%dT%H:%M:%SZ")
+        else
+            cutoff_utc="${cutoff}Z"
+        fi
+        filter_arg="--arg c $cutoff_utc"
+        jq_filter='select(.pushedAt > $c)'
+    else
+        filter_arg=""
+        jq_filter='.'
+    fi
+
+    while IFS= read -r name; do
+        [ -n "$name" ] && active_repos+=("$name")
+    done < <(echo "$repos_json" | jq -r ${filter_arg} "
+        .data.viewer.repositories.nodes[]
+        | select(.pushedAt != null)
+        | ${jq_filter}
+        | .name
+    ")
+fi
+
+echo ""
+if [ "$MODE" = "auto" ]; then
+    echo "  ${BOLD}repos${RESET} ${DIM}— latest active slot: ${header}${RESET}"
+else
+    echo "  ${BOLD}repos${RESET} ${DIM}— ${header}${RESET}"
+fi
+echo ""
+
+if [ ${#active_repos[@]} -eq 0 ]; then
+    echo "  ${GREEN}No activity.${RESET}"
+    echo ""
+    exit 0
+fi
+
+# --- Check active repos locally ---
+needs_pull=0
+has_unpushed=0
+not_local=0
+synced=0
+W=56
+
+print_row() {
+    local name="$1" status="$2" color="$3" bold="$4"
+    local pad=$(( W - ${#name} - ${#status} ))
+    (( pad < 3 )) && pad=3
+    local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
+    if [ "$bold" = "1" ]; then
+        printf "    ${BOLD}%s${RESET} ${DIM}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
+    else
+        printf "    %s ${DIM}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
+    fi
+}
+
+# Checks a repo: fetch, compare branches, print row + commits
+check_repo() {
+    local name="$1" local_path="$2"
+    local display="~${local_path#$HOME}"
+
+    git -C "$local_path" fetch --quiet 2>/dev/null || true
+
+    local behind=0 ahead=0
+    # Collect branch pairs for commit listing
+    local branches_info=""
+    while IFS= read -r branch; do
+        [ -z "$branch" ] && continue
+        local upstream
+        upstream=$(git -C "$local_path" rev-parse --abbrev-ref \
+            "${branch}@{upstream}" 2>/dev/null) || continue
+        local b a
+        b=$(git -C "$local_path" rev-list --count \
+            "${branch}..${upstream}" 2>/dev/null || echo 0)
+        a=$(git -C "$local_path" rev-list --count \
+            "${upstream}..${branch}" 2>/dev/null || echo 0)
+        behind=$(( behind + b ))
+        ahead=$(( ahead + a ))
+        if [ "$b" -gt 0 ] || [ "$a" -gt 0 ]; then
+            branches_info="${branches_info}${branch}|${upstream}|${b}|${a} "
+        fi
+    done < <(git -C "$local_path" for-each-ref \
+        --format='%(refname:short)' refs/heads/ 2>/dev/null)
+
+    if (( behind > 0 && ahead > 0 )); then
+        print_row "$name" "$behind behind, $ahead ahead" "$YELLOW" "1"
+        needs_pull=$(( needs_pull + 1 ))
+        has_unpushed=$(( has_unpushed + 1 ))
+    elif (( behind > 0 )); then
+        print_row "$name" "$behind behind" "$YELLOW" "1"
+        needs_pull=$(( needs_pull + 1 ))
+    elif (( ahead > 0 )); then
+        print_row "$name" "$ahead ahead" "$GREEN" "1"
+        has_unpushed=$(( has_unpushed + 1 ))
+    else
+        print_row "$name" "synced" "$GREEN" "0"
+        synced=$(( synced + 1 ))
+    fi
+    echo "      ${DIM}${display}${RESET}"
+
+    # Print commits
+    if [ -n "$branches_info" ]; then
+        # Behind/ahead: show diverged commits
+        for info in $branches_info; do
+            local br="${info%%|*}"; local rest="${info#*|}"
+            local up="${rest%%|*}"; rest="${rest#*|}"
+            local b="${rest%%|*}"; local a="${rest#*|}"
+            if [ "$b" -gt 0 ]; then
+                git -C "$local_path" log "${br}..${up}" \
+                    --format="        ${DIM}%h${RESET} %s" 2>/dev/null || true
+            fi
+            if [ "$a" -gt 0 ]; then
+                git -C "$local_path" log "${up}..${br}" \
+                    --format="        ${DIM}%h${RESET} %s" 2>/dev/null || true
+            fi
+        done
+    else
+        # Synced: show latest commit on HEAD
+        git -C "$local_path" log -1 \
+            --format="        ${DIM}%h %s${RESET}" 2>/dev/null || true
+    fi
+}
+
+# Track which repo paths have been shown
+checked_paths=""
+
+# --- Pass 1: repos under current directory ---
+elsewhere_repos=()
+
+for name in "${active_repos[@]}"; do
+    local_path=$(find "$REPO_DIR" -maxdepth 3 -type d -iname "$name" \
+        -exec test -d "{}/.git" \; -print -quit 2>/dev/null)
+
+    if [ -z "$local_path" ]; then
+        elsewhere_repos+=("$name")
+        continue
+    fi
+
+    check_repo "$name" "$local_path"
+    checked_paths="${checked_paths}|${local_path}"
+done
+
+# --- Pass 2: repos found elsewhere on the machine ---
+if [ ${#elsewhere_repos[@]} -gt 0 ]; then
+    found_elsewhere=false
+
+    for name in "${elsewhere_repos[@]}"; do
+        local_path=$(find "$HOME" -maxdepth 4 -type d \
+            -not -path "*/Library/*" \
+            -not -path "*/.Trash/*" \
+            -not -path "*/node_modules/*" \
+            -not -path "*/.cache/*" \
+            -iname "$name" \
+            -exec test -d "{}/.git" \; -print -quit 2>/dev/null || true)
+
+        # Skip if it's actually under REPO_DIR (already checked in pass 1)
+        case "$local_path" in "$REPO_DIR"/*) local_path="" ;; esac
+
+        if ! $found_elsewhere; then
+            echo ""
+            echo "  ${DIM}also active (elsewhere):${RESET}"
+            found_elsewhere=true
+        fi
+
+        if [ -n "$local_path" ]; then
+            check_repo "$name" "$local_path"
+            checked_paths="${checked_paths}|${local_path}"
+        else
+            print_row "$name" "not cloned" "$DIM" "0"
+            not_local=$(( not_local + 1 ))
+        fi
+    done
+fi
+
+# --- Pass 3: local repos with uncommitted or unpushed changes ---
+has_local_changes=false
+dirty_count=0
+
+while IFS= read -r gitdir; do
+    repo_path="${gitdir%/.git}"
+
+    # Skip repos already shown
+    case "$checked_paths" in *"|${repo_path}"*) continue ;; esac
+
+    name=$(basename "$repo_path")
+    display="~${repo_path#$HOME}"
+
+    # Count uncommitted changes (excluding untracked)
+    changed=$(git -C "$repo_path" status --porcelain 2>/dev/null \
+        | { grep -v '^??' || true; } | wc -l | tr -d ' ')
+
+    # Count unpushed commits (using cached remote refs, no fetch)
+    local_ahead=0
+    while IFS= read -r branch; do
+        [ -z "$branch" ] && continue
+        upstream=$(git -C "$repo_path" rev-parse --abbrev-ref \
+            "${branch}@{upstream}" 2>/dev/null) || continue
+        a=$(git -C "$repo_path" rev-list --count \
+            "${upstream}..${branch}" 2>/dev/null || echo 0)
+        local_ahead=$(( local_ahead + a ))
+    done < <(git -C "$repo_path" for-each-ref \
+        --format='%(refname:short)' refs/heads/ 2>/dev/null)
+
+    [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && continue
+
+    if ! $has_local_changes; then
+        echo ""
+        echo "  ${DIM}local changes:${RESET}"
+        has_local_changes=true
+    fi
+
+    status=""
+    if [ "$local_ahead" -gt 0 ] && [ "$changed" -gt 0 ]; then
+        status="${local_ahead} ahead, ${changed} uncommitted"
+        print_row "$name" "$status" "$YELLOW" "1"
+    elif [ "$local_ahead" -gt 0 ]; then
+        status="${local_ahead} ahead"
+        print_row "$name" "$status" "$GREEN" "1"
+    else
+        status="${changed} uncommitted"
+        print_row "$name" "$status" "$YELLOW" "1"
+    fi
+    echo "      ${DIM}${display}${RESET}"
+    dirty_count=$(( dirty_count + 1 ))
+
+done < <(find "$REPO_DIR" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort)
+
+# --- Summary ---
+echo ""
+echo "  ${DIM}──────────────────────────────${RESET}"
+parts=""
+[ $needs_pull -gt 0 ]   && parts="${parts}${YELLOW}${needs_pull} behind${RESET} ${DIM}·${RESET} "
+[ $has_unpushed -gt 0 ] && parts="${parts}${GREEN}${has_unpushed} ahead${RESET} ${DIM}·${RESET} "
+[ $synced -gt 0 ]        && parts="${parts}${DIM}${synced} synced${RESET} ${DIM}·${RESET} "
+[ $dirty_count -gt 0 ]   && parts="${parts}${YELLOW}${dirty_count} uncommitted${RESET} ${DIM}·${RESET} "
+[ $not_local -gt 0 ]     && parts="${parts}${DIM}${not_local} not local${RESET} ${DIM}·${RESET} "
+parts="${parts% ${DIM}·${RESET} }"
+echo "  ${parts}"
+echo ""
