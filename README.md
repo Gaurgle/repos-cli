@@ -1,4 +1,12 @@
 # repoz
+
+![License](https://img.shields.io/github/license/Gaurgle/repoz)
+![Shell](https://img.shields.io/badge/shell-bash-89e051)
+![gh](https://img.shields.io/badge/requires-gh-blue)
+![jq](https://img.shields.io/badge/requires-jq-blue)
+
+See what changed across your repos since you last sat down.
+
 See what changed across your repos since you last sat down.
 
 If you work on multiple projects and switch between machines — a work laptop and a home setup, say — you know the feeling. You sit down, and you're not sure which repos have new commits you need to pull, which ones you forgot to push last night, or where you left uncommitted work.
