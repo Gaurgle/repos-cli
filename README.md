@@ -1,10 +1,10 @@
-# repos
+# repoz
 
 See what changed across your repos since you last sat down.
 
 If you work on multiple projects and switch between machines — a work laptop and a home setup, say — you know the feeling. You sit down, and you're not sure which repos have new commits you need to pull, which ones you forgot to push last night, or where you left uncommitted work.
 
-`repos` gives you that overview in one command. It checks GitHub, compares with what you have locally, and shows you the status of everything that's been active recently. That's it. No setup, no config files, no background processes. Just a bash script, `gh`, and `jq`.
+`repoz` gives you that overview in one command. It checks GitHub, compares with what you have locally, and shows you the status of everything that's been active recently. That's it. No setup, no config files, no background processes. Just a bash script, `gh`, and `jq`.
 
 It's fast because it doesn't check every repo you own — it asks GitHub which repos were recently pushed to, then only fetches those.
 
@@ -13,7 +13,7 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
 **Default mode** — shows repos active in the latest time slot:
 
 ```
-  repos — latest active slot: 2026-03-31  Evening (18-00)
+  repoz — latest active slot: 2026-03-31  Evening (18-00)
   ──────────────────────────────────────────────────────────
 
     frontend-app ·································· 2 behind
@@ -45,7 +45,7 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
 **All synced** — nothing to do:
 
 ```
-  repos — latest active slot: 2026-04-01  Work (09-18)
+  repoz — latest active slot: 2026-04-01  Work (09-18)
   ──────────────────────────────────────────────────────────
 
     webapp ·········································· synced
@@ -62,7 +62,7 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
 **Using `--since`** — activity since a specific date:
 
 ```
-  repos — since 2026-03-25
+  repoz — since 2026-03-25
   ──────────────────────────────────────────────────────────
 
     webapp ·········································· synced
@@ -84,12 +84,12 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
 ## Installation
 
 ```bash
-git clone https://github.com/Gaurgle/repos-cli.git
-cd repos-cli
+git clone https://github.com/Gaurgle/repoz.git
+cd repoz
 ./install.sh
 ```
 
-This copies `repos` to `~/.local/bin/` and verifies dependencies. To install elsewhere:
+This copies `repoz` to `~/.local/bin/` and verifies dependencies. To install elsewhere:
 
 ```bash
 ./install.sh /usr/local/bin
@@ -98,14 +98,14 @@ This copies `repos` to `~/.local/bin/` and verifies dependencies. To install els
 Or just copy it manually:
 
 ```bash
-cp repos ~/.local/bin/repos
-chmod +x ~/.local/bin/repos
+cp repoz ~/.local/bin/repoz
+chmod +x ~/.local/bin/repoz
 ```
 
 ## Usage
 
 ```
-repos [options]
+repoz [options]
 ```
 
 | Flag | Description |
@@ -117,15 +117,15 @@ repos [options]
 | `-v` | Also list repos not cloned locally |
 | `-h, --help` | Show help |
 
-By default, `repos` searches for local clones under the current directory. Set `REPO_CHECK_DIR` to override:
+By default, `repoz` searches for local clones under the current directory. Set `REPO_CHECK_DIR` to override:
 
 ```bash
-REPO_CHECK_DIR=~/code repos
+REPO_CHECK_DIR=~/code repoz
 ```
 
 ## Configuration
 
-Create `~/.config/repos/config` to customize time slots and other settings:
+Create `~/.config/repoz/config` to customize time slots and other settings:
 
 ```bash
 # Time slot boundaries (24h format)
@@ -159,7 +159,7 @@ All settings are optional. Without a config file, defaults are used.
 
 ## SSH setup (recommended)
 
-`repos` runs `git fetch` on active repos. If your repos use SSH remotes (`git@github.com:...`), you'll want your SSH key loaded so you don't get passphrase prompts for every repo.
+`repoz` runs `git fetch` on active repos. If your repos use SSH remotes (`git@github.com:...`), you'll want your SSH key loaded so you don't get passphrase prompts for every repo.
 
 **macOS** — store your passphrase in the Keychain (once):
 

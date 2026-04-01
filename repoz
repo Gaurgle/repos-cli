@@ -2,7 +2,7 @@
 set -eo pipefail
 
 REPO_DIR="${REPO_CHECK_DIR:-$(pwd)}"
-CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/repos/config"
+CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/repoz/config"
 
 # --- Defaults (overridden by config file) ---
 WORK_START=9
@@ -41,7 +41,7 @@ slot_label_night="Night (00-$(printf '%02d' $WORK_START))"
 
 usage() {
     cat <<'EOF'
-Usage: repos [options]
+Usage: repoz [options]
 
 Checks GitHub for recently pushed repos and compares with local state.
 Only checks repos found under the current directory (or REPO_CHECK_DIR).
@@ -57,7 +57,7 @@ Options:
   -h, --help      Show this help
 
 Time slots default: Work (09–18), Evening (18–00), Night (00–09)
-Configure via ~/.config/repos/config or REPO_CHECK_DIR env var.
+Configure via ~/.config/repoz/config or REPO_CHECK_DIR env var.
 EOF
 }
 
@@ -193,9 +193,9 @@ section_div() {
 
 echo ""
 if [ "$MODE" = "auto" ]; then
-    echo "  ${LAVENDER}${BOLD}repos${RESET} ${OVERLAY}— latest active slot: ${header}${RESET}"
+    echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— latest active slot: ${header}${RESET}"
 else
-    echo "  ${LAVENDER}${BOLD}repos${RESET} ${OVERLAY}— ${header}${RESET}"
+    echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— ${header}${RESET}"
 fi
 echo "  ${DIV}"
 

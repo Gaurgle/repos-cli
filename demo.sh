@@ -43,7 +43,7 @@ commit() { echo "      ${OVERLAY}$1${RESET} $2"; }
 
 demo1() {
     echo ""
-    echo "  ${LAVENDER}${BOLD}repos${RESET} ${OVERLAY}— latest active slot: 2025-06-12  Evening (18-00)${RESET}"
+    echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— latest active slot: 2025-06-12  Evening (18-00)${RESET}"
     echo "  ${DIV}"
     echo ""
 
@@ -83,7 +83,7 @@ demo1() {
 
 demo2() {
     echo ""
-    echo "  ${LAVENDER}${BOLD}repos${RESET} ${OVERLAY}— latest active slot: 2025-06-13  Work (09-18)${RESET}"
+    echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— latest active slot: 2025-06-13  Work (09-18)${RESET}"
     echo "  ${DIV}"
     echo ""
 
@@ -103,7 +103,7 @@ demo2() {
 
 demo3() {
     echo ""
-    echo "  ${LAVENDER}${BOLD}repos${RESET} ${OVERLAY}— since 2025-06-01${RESET}"
+    echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— since 2025-06-01${RESET}"
     echo "  ${DIV}"
     echo ""
 

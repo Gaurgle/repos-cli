@@ -23,10 +23,10 @@ fi
 
 # Install
 mkdir -p "$INSTALL_DIR"
-cp repos "$INSTALL_DIR/repos"
-chmod +x "$INSTALL_DIR/repos"
+cp repoz "$INSTALL_DIR/repoz"
+chmod +x "$INSTALL_DIR/repoz"
 
-echo "Installed repos to $INSTALL_DIR/repos"
+echo "Installed repoz to $INSTALL_DIR/repoz"
 
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
     echo ""
