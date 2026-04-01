@@ -56,7 +56,7 @@ demo1() {
     path "~/repos/acme/backend-api"
     echo "      ${OVERLAY}d7e8f9a refactor: extract auth middleware${RESET}"
 
-    row "mobile-app" "1 ahead" "$GREEN" "1"
+    row "mobile-app" "1 ahead" "$PEACH" "1"
     path "~/repos/acme/mobile-app"
     commit "b2c3d4e" "feat: push notification support"
 
@@ -77,7 +77,7 @@ demo1() {
 
     echo ""
     echo "  ${DIV}"
-    echo "  ${PEACH}2 behind${RESET} ${SURFACE}·${RESET} ${OVERLAY}1 synced${RESET} ${SURFACE}·${RESET} ${GREEN}1 ahead${RESET} ${SURFACE}·${RESET} ${YELLOW}1 uncommitted${RESET}"
+    echo "  ${PEACH}2 behind${RESET} ${SURFACE}·${RESET} ${PEACH}1 ahead${RESET} ${SURFACE}·${RESET} ${YELLOW}1 uncommitted${RESET} ${SURFACE}·${RESET} ${GREEN}1 synced${RESET}"
     echo ""
 }
 
@@ -97,7 +97,7 @@ demo2() {
 
     echo ""
     echo "  ${DIV}"
-    echo "  ${OVERLAY}2 synced${RESET}"
+    echo "  ${GREEN}2 synced${RESET}"
     echo ""
 }
 
@@ -117,13 +117,13 @@ demo3() {
     commit "b4c5d6e" "refactor: plugin system"
     commit "a7b8c9d" "fix: windows path handling"
 
-    row "design-system" "1 ahead" "$GREEN" "1"
+    row "design-system" "1 ahead" "$PEACH" "1"
     path "~/repos/design-system"
     commit "e0f1a2b" "feat: new color tokens"
 
     echo ""
     echo "  ${DIV}"
-    echo "  ${PEACH}1 behind${RESET} ${SURFACE}·${RESET} ${OVERLAY}1 synced${RESET} ${SURFACE}·${RESET} ${GREEN}1 ahead${RESET}"
+    echo "  ${PEACH}1 behind${RESET} ${SURFACE}·${RESET} ${PEACH}1 ahead${RESET} ${SURFACE}·${RESET} ${GREEN}1 synced${RESET}"
     echo ""
 }
 

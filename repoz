@@ -37,7 +37,6 @@ RESET=$(printf '\033[0m')
 # --- Slot labels from config ---
 slot_label_work="Work ($(printf '%02d' $WORK_START)-$(printf '%02d' $WORK_END))"
 slot_label_evening="Evening ($(printf '%02d' $WORK_END)-00)"
-slot_label_night="Night (00-$(printf '%02d' $WORK_START))"
 
 usage() {
     cat <<'EOF'
@@ -47,7 +46,7 @@ Checks GitHub for recently pushed repos and compares with local state.
 Only checks repos found under the current directory (or REPO_CHECK_DIR).
 
 Modes (pick one):
-  (default)       Find the latest time slot with any activity
+  (default)       Show activity since the previous time slot
   --since DATE    Show all activity since DATE (e.g. 2026-03-15)
   --today         Show all activity since midnight
   --all           Show all divergence (no time filter)
@@ -55,7 +54,8 @@ Modes (pick one):
 Options:
   -h, --help      Show this help
 
-Time slots default: Work (09–18), Evening (18–00), Night (00–09)
+Time slots: Work (09–18), Evening (18–00). Default mode shows activity
+since the previous slot boundary, so you see what changed while away.
 Configure via ~/.config/repoz/config or REPO_CHECK_DIR env var.
 EOF
 }
@@ -74,14 +74,6 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# --- Timezone offset in seconds (for jq) ---
-tz_raw=$(date +%z)
-tz_sign=1
-case "$tz_raw" in -*) tz_sign=-1 ;; esac
-tz_h=$((10#${tz_raw:1:2}))
-tz_m=$((10#${tz_raw:3:2}))
-tz_offset=$(( tz_sign * (tz_h * 3600 + tz_m * 60) ))
-
 # --- One GitHub API call ---
 repos_json=$(gh api graphql -f query="
   { viewer {
@@ -92,89 +84,63 @@ repos_json=$(gh api graphql -f query="
   }}
 " 2>/dev/null) || { echo "  Failed to reach GitHub. Run: gh auth login"; exit 1; }
 
-# --- Determine which repos to check ---
+# --- Determine cutoff and header based on mode ---
 active_repos=()
+today=$(date +%Y-%m-%d)
+cutoff=""
 header=""
 
-if [ "$MODE" = "auto" ]; then
-    # Find the latest time slot with any activity
-    result=$(echo "$repos_json" | jq -r \
-      --argjson tz "$tz_offset" \
-      --argjson ws "$WORK_START" \
-      --argjson we "$WORK_END" \
-      --arg lw "$slot_label_work" \
-      --arg le "$slot_label_evening" \
-      --arg ln "$slot_label_night" '
-      [ .data.viewer.repositories.nodes[]
-        | select(.pushedAt != null)
-        | (.pushedAt | sub("Z$"; "")
-           | strptime("%Y-%m-%dT%H:%M:%S") | mktime + $tz) as $local
-        | ($local | strftime("%Y-%m-%d")) as $date
-        | ($local | strftime("%H") | tonumber) as $h
-        | ( if $h >= $ws and $h < $we then {k: "1", l: $lw}
-            elif $h >= $we            then {k: "2", l: $le}
-            else                           {k: "3", l: $ln} end
-          ) as $slot
-        | {name, slot_id: "\($date)_\($slot.k)",
-           slot_display: "\($date)  \($slot.l)"}
-      ]
-      | group_by(.slot_id)
-      | sort_by(.[0].slot_id)
-      | last
-      | "\(.[0].slot_display)\n\([.[].name] | join("\n"))"
-    ') || true
+if yesterday=$(date -v-1d +%Y-%m-%d 2>/dev/null); then :
+else yesterday=$(date -d yesterday +%Y-%m-%d); fi
 
-    if [ -z "$result" ]; then
-        echo ""
-        echo "  ${GREEN}No recent push activity on GitHub.${RESET}"
-        echo ""
-        exit 0
-    fi
-
-    header=$(echo "$result" | head -1)
-    while IFS= read -r name; do
-        [ -n "$name" ] && active_repos+=("$name")
-    done < <(echo "$result" | tail -n +2)
-
-else
-    # Override modes: --since, --today, --all
-    today=$(date +%Y-%m-%d)
-    case "$MODE" in
-        since)
-            cutoff="$SINCE_ARG"
-            case "$cutoff" in ????-??-??) cutoff="${cutoff}T00:00:00" ;; esac
-            header="since $SINCE_ARG" ;;
-        today)
-            cutoff="${today}T00:00:00"
-            header="today" ;;
-        all)
-            cutoff=""
-            header="all divergence" ;;
-    esac
-
-    jq_args=()
-    jq_filter='.'
-    if [ -n "${cutoff:-}" ]; then
-        if cutoff_epoch=$(date -jf "%Y-%m-%dT%H:%M:%S" "$cutoff" +%s 2>/dev/null); then
-            cutoff_utc=$(date -u -r "$cutoff_epoch" +"%Y-%m-%dT%H:%M:%SZ")
-        elif cutoff_epoch=$(date -d "$cutoff" +%s 2>/dev/null); then
-            cutoff_utc=$(date -u -d "@$cutoff_epoch" +"%Y-%m-%dT%H:%M:%SZ")
+case "$MODE" in
+    auto)
+        hour=$((10#$(date +%H)))
+        if (( hour >= WORK_END )); then
+            cutoff="${today}T$(printf '%02d' $WORK_START):00:00"
+            header="since ${today}  ${slot_label_work}"
         else
-            cutoff_utc="${cutoff}Z"
+            cutoff="${yesterday}T$(printf '%02d' $WORK_END):00:00"
+            header="since ${yesterday}  ${slot_label_evening}"
         fi
-        jq_args=(--arg c "$cutoff_utc")
-        jq_filter='select(.pushedAt > $c)'
-    fi
+        ;;
+    since)
+        cutoff="$SINCE_ARG"
+        case "$cutoff" in ????-??-??) cutoff="${cutoff}T00:00:00" ;; esac
+        header="since $SINCE_ARG"
+        ;;
+    today)
+        cutoff="${today}T00:00:00"
+        header="today"
+        ;;
+    all)
+        header="all divergence"
+        ;;
+esac
 
-    while IFS= read -r name; do
-        [ -n "$name" ] && active_repos+=("$name")
-    done < <(echo "$repos_json" | jq -r "${jq_args[@]}" "
-        .data.viewer.repositories.nodes[]
-        | select(.pushedAt != null)
-        | ${jq_filter}
-        | .name
-    ")
+# --- Filter repos by cutoff ---
+jq_args=()
+jq_filter='.'
+if [ -n "$cutoff" ]; then
+    if cutoff_epoch=$(date -jf "%Y-%m-%dT%H:%M:%S" "$cutoff" +%s 2>/dev/null); then
+        cutoff_utc=$(date -u -r "$cutoff_epoch" +"%Y-%m-%dT%H:%M:%SZ")
+    elif cutoff_epoch=$(date -d "$cutoff" +%s 2>/dev/null); then
+        cutoff_utc=$(date -u -d "@$cutoff_epoch" +"%Y-%m-%dT%H:%M:%SZ")
+    else
+        cutoff_utc="${cutoff}Z"
+    fi
+    jq_args=(--arg c "$cutoff_utc")
+    jq_filter='select(.pushedAt > $c)'
 fi
+
+while IFS= read -r name; do
+    [ -n "$name" ] && active_repos+=("$name")
+done < <(echo "$repos_json" | jq -r "${jq_args[@]}" "
+    .data.viewer.repositories.nodes[]
+    | select(.pushedAt != null)
+    | ${jq_filter}
+    | .name
+")
 
 DIV_W=58
 DIV="${SURFACE}$(printf '%*s' "$DIV_W" '' | tr ' ' '─')${RESET}"
@@ -188,11 +154,7 @@ section_div() {
 }
 
 echo ""
-if [ "$MODE" = "auto" ]; then
-    echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— latest active slot: ${header}${RESET}"
-else
-    echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— ${header}${RESET}"
-fi
+echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— ${header}${RESET}"
 echo "  ${DIV}"
 
 if [ ${#active_repos[@]} -eq 0 ]; then
@@ -258,7 +220,7 @@ check_repo() {
         print_row "$name" "$behind behind" "$PEACH" "1"
         needs_pull=$(( needs_pull + 1 ))
     elif (( ahead > 0 )); then
-        print_row "$name" "$ahead ahead" "$GREEN" "1"
+        print_row "$name" "$ahead ahead" "$PEACH" "1"
         has_unpushed=$(( has_unpushed + 1 ))
     else
         print_row "$name" "synced" "$GREEN" "0"
@@ -384,7 +346,7 @@ while IFS= read -r gitdir; do
     if [ "$local_ahead" -gt 0 ] && [ "$changed" -gt 0 ]; then
         print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW" "1"
     elif [ "$local_ahead" -gt 0 ]; then
-        print_row "$name" "${local_ahead} ahead" "$GREEN" "1"
+        print_row "$name" "${local_ahead} ahead" "$PEACH" "1"
     else
         print_row "$name" "${changed} uncommitted" "$YELLOW" "1"
     fi
@@ -398,9 +360,9 @@ echo ""
 echo "  ${DIV}"
 parts=""
 [ $needs_pull -gt 0 ]   && parts="${parts}${PEACH}${needs_pull} behind${RESET} ${SURFACE}·${RESET} "
-[ $has_unpushed -gt 0 ] && parts="${parts}${GREEN}${has_unpushed} ahead${RESET} ${SURFACE}·${RESET} "
-[ $synced -gt 0 ]        && parts="${parts}${OVERLAY}${synced} synced${RESET} ${SURFACE}·${RESET} "
+[ $has_unpushed -gt 0 ] && parts="${parts}${PEACH}${has_unpushed} ahead${RESET} ${SURFACE}·${RESET} "
 [ $dirty_count -gt 0 ]   && parts="${parts}${YELLOW}${dirty_count} uncommitted${RESET} ${SURFACE}·${RESET} "
+[ $synced -gt 0 ]        && parts="${parts}${GREEN}${synced} synced${RESET} ${SURFACE}·${RESET} "
 [ $not_local -gt 0 ]     && parts="${parts}${OVERLAY}${not_local} not local${RESET} ${SURFACE}·${RESET} "
 parts="${parts% ${SURFACE}·${RESET} }"
 echo "  ${parts}"
