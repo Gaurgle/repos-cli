@@ -13,66 +13,71 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
 **Default mode** — shows repos active in the latest time slot:
 
 ```
-repos — latest active slot: 2026-03-31  Evening (18-00)
+  repos — latest active slot: 2026-03-31  Evening (18-00)
+  ──────────────────────────────────────────────────────────
 
-  frontend-app ·································· 2 behind
-    ~/repos/acme/frontend-app
+    frontend-app ·························· 2 behind
+      ~/repos/acme/frontend-app
       a1b2c3d feat: add dark mode toggle
       e4f5g6h fix: navbar responsive breakpoint
-  backend-api ··································· synced
-    ~/repos/acme/backend-api
+    backend-api ··························· synced
+      ~/repos/acme/backend-api
       d7e8f9a refactor: extract auth middleware
-  mobile-app ···································· 1 ahead
-    ~/repos/acme/mobile-app
+    mobile-app ···························· 1 ahead
+      ~/repos/acme/mobile-app
       b2c3d4e feat: push notification support
 
-  also active (elsewhere):
-    docs ········································ 1 behind
-      ~/work/docs
-        c5d6e7f docs: update API reference
+  ── also active ───────────────────────────────────────
 
-  local changes:
-    infra ···································· 2 uncommitted
+    docs ·································· 1 behind
+      ~/work/docs
+      c5d6e7f docs: update API reference
+
+  ── local changes ─────────────────────────────────────
+
+    infra ································· 2 uncommitted
       ~/repos/acme/infra
 
-  ──────────────────────────────
-  1 behind · 1 synced · 1 ahead · 1 uncommitted
+  ──────────────────────────────────────────────────────────
+  2 behind · 1 synced · 1 ahead · 1 uncommitted
 ```
 
 **All synced** — nothing to do:
 
 ```
-repos — latest active slot: 2026-04-01  Work (09-18)
+  repos — latest active slot: 2026-04-01  Work (09-18)
+  ──────────────────────────────────────────────────────────
 
-  webapp ········································ synced
-    ~/repos/webapp
+    webapp ································ synced
+      ~/repos/webapp
       f8a9b0c feat: add user preferences page
-  cli-tool ······································ synced
-    ~/repos/cli-tool
+    cli-tool ······························ synced
+      ~/repos/cli-tool
       a3b4c5d fix: handle empty config file
 
-  ──────────────────────────────
+  ──────────────────────────────────────────────────────────
   2 synced
 ```
 
 **Using `--since`** — activity since a specific date:
 
 ```
-repos — since 2026-03-25
+  repos — since 2026-03-25
+  ──────────────────────────────────────────────────────────
 
-  webapp ········································ synced
-    ~/repos/webapp
+    webapp ································ synced
+      ~/repos/webapp
       f8a9b0c feat: add user preferences page
-  cli-tool ······································ 3 behind
-    ~/repos/cli-tool
+    cli-tool ······························ 3 behind
+      ~/repos/cli-tool
       d1e2f3a feat: streaming output
       b4c5d6e refactor: plugin system
       a7b8c9d fix: windows path handling
-  design-system ································ 1 ahead
-    ~/repos/design-system
+    design-system ························· 1 ahead
+      ~/repos/design-system
       e0f1a2b feat: new color tokens
 
-  ──────────────────────────────
+  ──────────────────────────────────────────────────────────
   1 behind · 1 synced · 1 ahead
 ```
 

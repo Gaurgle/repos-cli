@@ -22,11 +22,17 @@ if [ -f "$CONFIG_FILE" ]; then
     done < "$CONFIG_FILE"
 fi
 
-YELLOW=$'\033[0;33m'
-GREEN=$'\033[0;32m'
-DIM=$'\033[2m'
-BOLD=$'\033[1m'
-RESET=$'\033[0m'
+# Catppuccin Mocha palette (printf for bash 3.2 compat)
+PEACH=$(printf '\033[38;2;250;179;135m')    # behind / warning
+GREEN=$(printf '\033[38;2;166;227;161m')    # ahead / synced
+YELLOW=$(printf '\033[38;2;249;226;175m')   # uncommitted
+SAPPHIRE=$(printf '\033[38;2;116;199;236m') # repo names
+LAVENDER=$(printf '\033[38;2;180;190;254m') # header
+MAUVE=$(printf '\033[38;2;203;166;247m')    # section labels
+OVERLAY=$(printf '\033[38;2;127;132;156m')  # paths, subtle text
+SURFACE=$(printf '\033[38;2;69;71;90m')     # dots, dividers
+BOLD=$(printf '\033[1m')
+RESET=$(printf '\033[0m')
 
 # --- Slot labels from config ---
 slot_label_work="Work ($(printf '%02d' $WORK_START)-$(printf '%02d' $WORK_END))"
@@ -174,13 +180,22 @@ else
     ")
 fi
 
-DIV="${DIM}──────────────────────────────────────────────────${RESET}"
+DIV_W=58
+DIV="${SURFACE}$(printf '%*s' "$DIV_W" '' | tr ' ' '─')${RESET}"
+
+section_div() {
+    local label="$1"
+    local prefix="── ${label} "
+    local remain=$(( DIV_W - ${#prefix} ))
+    printf '  %s── %s%s %s%s%s\n' \
+        "$SURFACE" "$MAUVE" "$label" "$SURFACE" "$(printf '%*s' "$remain" '' | tr ' ' '─')" "$RESET"
+}
 
 echo ""
 if [ "$MODE" = "auto" ]; then
-    echo "  ${BOLD}repos${RESET} ${DIM}— latest active slot: ${header}${RESET}"
+    echo "  ${LAVENDER}${BOLD}repos${RESET} ${OVERLAY}— latest active slot: ${header}${RESET}"
 else
-    echo "  ${BOLD}repos${RESET} ${DIM}— ${header}${RESET}"
+    echo "  ${LAVENDER}${BOLD}repos${RESET} ${OVERLAY}— ${header}${RESET}"
 fi
 echo "  ${DIV}"
 
@@ -197,17 +212,17 @@ needs_pull=0
 has_unpushed=0
 not_local=0
 synced=0
-W=56
+DOT_COL=38
 
 print_row() {
     local name="$1" status="$2" color="$3" bold="$4"
-    local pad=$(( W - ${#name} - ${#status} ))
+    local pad=$(( DOT_COL - ${#name} ))
     (( pad < 3 )) && pad=3
     local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
     if [ "$bold" = "1" ]; then
-        printf "    ${BOLD}%s${RESET} ${DIM}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
+        printf "    ${SAPPHIRE}${BOLD}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
     else
-        printf "    %s ${DIM}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
+        printf "    ${SAPPHIRE}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
     fi
 }
 
@@ -240,11 +255,11 @@ check_repo() {
         --format='%(refname:short)' refs/heads/ 2>/dev/null)
 
     if (( behind > 0 && ahead > 0 )); then
-        print_row "$name" "$behind behind, $ahead ahead" "$YELLOW" "1"
+        print_row "$name" "$behind behind, $ahead ahead" "$PEACH" "1"
         needs_pull=$(( needs_pull + 1 ))
         has_unpushed=$(( has_unpushed + 1 ))
     elif (( behind > 0 )); then
-        print_row "$name" "$behind behind" "$YELLOW" "1"
+        print_row "$name" "$behind behind" "$PEACH" "1"
         needs_pull=$(( needs_pull + 1 ))
     elif (( ahead > 0 )); then
         print_row "$name" "$ahead ahead" "$GREEN" "1"
@@ -253,7 +268,7 @@ check_repo() {
         print_row "$name" "synced" "$GREEN" "0"
         synced=$(( synced + 1 ))
     fi
-    echo "      ${DIM}${display}${RESET}"
+    echo "      ${OVERLAY}${display}${RESET}"
 
     # Print commits
     if [ -n "$branches_info" ]; then
@@ -263,16 +278,16 @@ check_repo() {
             local b="${rest%%|*}"; local a="${rest#*|}"
             if [ "$b" -gt 0 ]; then
                 git -C "$local_path" log "${br}..${up}" \
-                    --format="      ${DIM}%h${RESET} %s" 2>/dev/null || true
+                    --format="      ${OVERLAY}%h${RESET} %s" 2>/dev/null || true
             fi
             if [ "$a" -gt 0 ]; then
                 git -C "$local_path" log "${up}..${br}" \
-                    --format="      ${DIM}%h${RESET} %s" 2>/dev/null || true
+                    --format="      ${OVERLAY}%h${RESET} %s" 2>/dev/null || true
             fi
         done
     else
         git -C "$local_path" log -1 \
-            --format="      ${DIM}%h %s${RESET}" 2>/dev/null || true
+            --format="      ${OVERLAY}%h %s${RESET}" 2>/dev/null || true
     fi
 }
 
@@ -313,7 +328,7 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
 
         if ! $found_elsewhere; then
             echo ""
-            echo "  ${DIM}── also active ──────────────────────────────────${RESET}"
+            section_div "also active"
             echo ""
             found_elsewhere=true
         fi
@@ -322,7 +337,7 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
             check_repo "$name" "$local_path"
             checked_paths="${checked_paths}|${local_path}"
         else
-            print_row "$name" "not cloned" "$DIM" "0"
+            print_row "$name" "not cloned" "$OVERLAY" "0"
             not_local=$(( not_local + 1 ))
         fi
     done
@@ -361,7 +376,7 @@ while IFS= read -r gitdir; do
 
     if ! $has_local_changes; then
         echo ""
-        echo "  ${DIM}── local changes ───────────────────────────────${RESET}"
+        section_div "local changes"
         echo ""
         has_local_changes=true
     fi
@@ -377,20 +392,20 @@ while IFS= read -r gitdir; do
         status="${changed} uncommitted"
         print_row "$name" "$status" "$YELLOW" "1"
     fi
-    echo "      ${DIM}${display}${RESET}"
+    echo "      ${OVERLAY}${display}${RESET}"
     dirty_count=$(( dirty_count + 1 ))
 
 done < <(find "$REPO_DIR" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort)
 
 # --- Summary ---
+echo ""
 echo "  ${DIV}"
 parts=""
-[ $needs_pull -gt 0 ]   && parts="${parts}${YELLOW}${needs_pull} behind${RESET} ${DIM}·${RESET} "
-[ $has_unpushed -gt 0 ] && parts="${parts}${GREEN}${has_unpushed} ahead${RESET} ${DIM}·${RESET} "
-[ $synced -gt 0 ]        && parts="${parts}${DIM}${synced} synced${RESET} ${DIM}·${RESET} "
-[ $dirty_count -gt 0 ]   && parts="${parts}${YELLOW}${dirty_count} uncommitted${RESET} ${DIM}·${RESET} "
-[ $not_local -gt 0 ]     && parts="${parts}${DIM}${not_local} not local${RESET} ${DIM}·${RESET} "
-parts="${parts% ${DIM}·${RESET} }"
-echo ""
+[ $needs_pull -gt 0 ]   && parts="${parts}${PEACH}${needs_pull} behind${RESET} ${SURFACE}·${RESET} "
+[ $has_unpushed -gt 0 ] && parts="${parts}${GREEN}${has_unpushed} ahead${RESET} ${SURFACE}·${RESET} "
+[ $synced -gt 0 ]        && parts="${parts}${OVERLAY}${synced} synced${RESET} ${SURFACE}·${RESET} "
+[ $dirty_count -gt 0 ]   && parts="${parts}${YELLOW}${dirty_count} uncommitted${RESET} ${SURFACE}·${RESET} "
+[ $not_local -gt 0 ]     && parts="${parts}${OVERLAY}${not_local} not local${RESET} ${SURFACE}·${RESET} "
+parts="${parts% ${SURFACE}·${RESET} }"
 echo "  ${parts}"
 echo ""
