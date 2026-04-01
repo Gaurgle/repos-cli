@@ -27,13 +27,13 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
       ~/repos/acme/mobile-app
       b2c3d4e feat: push notification support
 
-  ── also active ───────────────────────────────────────
+  ── also active ───────────────────────────────────────────
 
     docs ·········································· 1 behind
       ~/work/docs
       c5d6e7f docs: update API reference
 
-  ── local changes ─────────────────────────────────────
+  ── local changes ─────────────────────────────────────────
 
     infra ···································· 2 uncommitted
       ~/repos/acme/infra
