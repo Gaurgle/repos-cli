@@ -16,26 +16,26 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
   repos — latest active slot: 2026-03-31  Evening (18-00)
   ──────────────────────────────────────────────────────────
 
-    frontend-app ·························· 2 behind
+    frontend-app ·································· 2 behind
       ~/repos/acme/frontend-app
       a1b2c3d feat: add dark mode toggle
       e4f5g6h fix: navbar responsive breakpoint
-    backend-api ··························· synced
+    backend-api ····································· synced
       ~/repos/acme/backend-api
       d7e8f9a refactor: extract auth middleware
-    mobile-app ···························· 1 ahead
+    mobile-app ····································· 1 ahead
       ~/repos/acme/mobile-app
       b2c3d4e feat: push notification support
 
   ── also active ───────────────────────────────────────
 
-    docs ·································· 1 behind
+    docs ·········································· 1 behind
       ~/work/docs
       c5d6e7f docs: update API reference
 
   ── local changes ─────────────────────────────────────
 
-    infra ································· 2 uncommitted
+    infra ···································· 2 uncommitted
       ~/repos/acme/infra
 
   ──────────────────────────────────────────────────────────
@@ -48,10 +48,10 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
   repos — latest active slot: 2026-04-01  Work (09-18)
   ──────────────────────────────────────────────────────────
 
-    webapp ································ synced
+    webapp ·········································· synced
       ~/repos/webapp
       f8a9b0c feat: add user preferences page
-    cli-tool ······························ synced
+    cli-tool ········································ synced
       ~/repos/cli-tool
       a3b4c5d fix: handle empty config file
 
@@ -65,15 +65,15 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
   repos — since 2026-03-25
   ──────────────────────────────────────────────────────────
 
-    webapp ································ synced
+    webapp ·········································· synced
       ~/repos/webapp
       f8a9b0c feat: add user preferences page
-    cli-tool ······························ 3 behind
+    cli-tool ······································ 3 behind
       ~/repos/cli-tool
       d1e2f3a feat: streaming output
       b4c5d6e refactor: plugin system
       a7b8c9d fix: windows path handling
-    design-system ························· 1 ahead
+    design-system ·································· 1 ahead
       ~/repos/design-system
       e0f1a2b feat: new color tokens
 

@@ -16,7 +16,7 @@ RESET=$(printf '\033[0m')
 
 DIV_W=58
 DIV="${SURFACE}$(printf '%*s' "$DIV_W" '' | tr ' ' '─')${RESET}"
-DOT_COL=38
+W=$(( DIV_W - 4 ))
 
 section_div() {
     local label="$1"
@@ -28,7 +28,7 @@ section_div() {
 
 row() {
     local name="$1" status="$2" color="$3" bold="$4"
-    local pad=$(( DOT_COL - ${#name} ))
+    local pad=$(( W - ${#name} - ${#status} ))
     (( pad < 3 )) && pad=3
     local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
     if [ "$bold" = "1" ]; then
