@@ -2,17 +2,11 @@
 
 See what changed across your repos since you last sat down.
 
-A single command that checks GitHub for recent push activity and compares it against your local clones. Built for developers who work across multiple machines and want to know what needs pulling, what has unpushed commits, and what has uncommitted changes — without running `git status` in every directory.
+If you work on multiple projects and switch between machines — a work laptop and a home setup, say — you know the feeling. You sit down, and you're not sure which repos have new commits you need to pull, which ones you forgot to push last night, or where you left uncommitted work.
 
-## How it works
+`repos` gives you that overview in one command. It checks GitHub, compares with what you have locally, and shows you the status of everything that's been active recently. That's it. No setup, no config files, no background processes. Just a bash script, `gh`, and `jq`.
 
-1. **One GitHub API call** fetches your 50 most recently pushed repos
-2. Finds which repos had activity in the relevant time window
-3. **Targeted `git fetch`** only on those active repos
-4. Compares local branches against their remotes
-5. Scans remaining local repos for uncommitted or unpushed work
-
-No polling. No background daemons. Just run it when you sit down.
+It's fast because it doesn't check every repo you own — it asks GitHub which repos were recently pushed to, then only fetches those.
 
 ## Examples
 
