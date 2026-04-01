@@ -8,6 +8,8 @@ If you work on multiple projects and switch between machines — a work laptop a
 
 It's fast because it doesn't check every repo you own — it asks GitHub which repos were recently pushed to, then only fetches those.
 
+![repoz output](demo.png)
+
 ## Examples
 
 **Default mode** — shows repos active in the latest time slot:
