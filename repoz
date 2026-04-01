@@ -173,15 +173,11 @@ synced=0
 W=$(( DIV_W - 4 ))
 
 print_row() {
-    local name="$1" status="$2" color="$3" bold="$4"
+    local name="$1" status="$2" color="$3"
     local pad=$(( W - ${#name} - ${#status} ))
     (( pad < 3 )) && pad=3
     local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
-    if [ "$bold" = "1" ]; then
-        printf "    ${SAPPHIRE}${BOLD}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
-    else
-        printf "    ${SAPPHIRE}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
-    fi
+    printf "    ${SAPPHIRE}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
 }
 
 # Checks a repo: fetch, compare branches, print row + commits
@@ -213,17 +209,17 @@ check_repo() {
         --format='%(refname:short)' refs/heads/ 2>/dev/null)
 
     if (( behind > 0 && ahead > 0 )); then
-        print_row "$name" "$behind behind, $ahead ahead" "$PEACH" "1"
+        print_row "$name" "$behind behind, $ahead ahead" "$PEACH"
         needs_pull=$(( needs_pull + 1 ))
         has_unpushed=$(( has_unpushed + 1 ))
     elif (( behind > 0 )); then
-        print_row "$name" "$behind behind" "$PEACH" "1"
+        print_row "$name" "$behind behind" "$PEACH"
         needs_pull=$(( needs_pull + 1 ))
     elif (( ahead > 0 )); then
-        print_row "$name" "$ahead ahead" "$PEACH" "1"
+        print_row "$name" "$ahead ahead" "$PEACH"
         has_unpushed=$(( has_unpushed + 1 ))
     else
-        print_row "$name" "synced" "$GREEN" "0"
+        print_row "$name" "synced" "$GREEN"
         synced=$(( synced + 1 ))
     fi
     echo "      ${OVERLAY}${display}${RESET}"
@@ -295,7 +291,7 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
             check_repo "$name" "$local_path"
             checked_paths="${checked_paths}|${local_path}"
         else
-            print_row "$name" "not cloned" "$OVERLAY" "0"
+            print_row "$name" "not cloned" "$OVERLAY"
             not_local=$(( not_local + 1 ))
         fi
     done
@@ -344,11 +340,11 @@ while IFS= read -r gitdir; do
     fi
 
     if [ "$local_ahead" -gt 0 ] && [ "$changed" -gt 0 ]; then
-        print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW" "1"
+        print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW"
     elif [ "$local_ahead" -gt 0 ]; then
-        print_row "$name" "${local_ahead} ahead" "$PEACH" "1"
+        print_row "$name" "${local_ahead} ahead" "$PEACH"
     else
-        print_row "$name" "${changed} uncommitted" "$YELLOW" "1"
+        print_row "$name" "${changed} uncommitted" "$YELLOW"
     fi
     echo "      ${OVERLAY}${display}${RESET}"
     dirty_count=$(( dirty_count + 1 ))

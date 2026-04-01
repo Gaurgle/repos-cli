@@ -27,15 +27,11 @@ section_div() {
 }
 
 row() {
-    local name="$1" status="$2" color="$3" bold="$4"
+    local name="$1" status="$2" color="$3"
     local pad=$(( W - ${#name} - ${#status} ))
     (( pad < 3 )) && pad=3
     local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
-    if [ "$bold" = "1" ]; then
-        printf "    ${SAPPHIRE}${BOLD}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
-    else
-        printf "    ${SAPPHIRE}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
-    fi
+    printf "    ${SAPPHIRE}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
 }
 
 path() { echo "      ${OVERLAY}$1${RESET}"; }
@@ -47,16 +43,16 @@ demo1() {
     echo "  ${DIV}"
     echo ""
 
-    row "frontend-app" "2 behind" "$PEACH" "1"
+    row "frontend-app" "2 behind" "$PEACH"
     path "~/repos/acme/frontend-app"
     commit "a1b2c3d" "feat: add dark mode toggle"
     commit "e4f5g6h" "fix: navbar responsive breakpoint"
 
-    row "backend-api" "synced" "$GREEN" "0"
+    row "backend-api" "synced" "$GREEN"
     path "~/repos/acme/backend-api"
     echo "      ${OVERLAY}d7e8f9a refactor: extract auth middleware${RESET}"
 
-    row "mobile-app" "1 ahead" "$PEACH" "1"
+    row "mobile-app" "1 ahead" "$PEACH"
     path "~/repos/acme/mobile-app"
     commit "b2c3d4e" "feat: push notification support"
 
@@ -64,7 +60,7 @@ demo1() {
     section_div "also active"
     echo ""
 
-    row "docs" "1 behind" "$PEACH" "1"
+    row "docs" "1 behind" "$PEACH"
     path "~/work/docs"
     commit "c5d6e7f" "docs: update API reference"
 
@@ -72,7 +68,7 @@ demo1() {
     section_div "local changes"
     echo ""
 
-    row "infra" "2 uncommitted" "$YELLOW" "1"
+    row "infra" "2 uncommitted" "$YELLOW"
     path "~/repos/acme/infra"
 
     echo ""
@@ -87,11 +83,11 @@ demo2() {
     echo "  ${DIV}"
     echo ""
 
-    row "webapp" "synced" "$GREEN" "0"
+    row "webapp" "synced" "$GREEN"
     path "~/repos/webapp"
     echo "      ${OVERLAY}f8a9b0c feat: add user preferences page${RESET}"
 
-    row "cli-tool" "synced" "$GREEN" "0"
+    row "cli-tool" "synced" "$GREEN"
     path "~/repos/cli-tool"
     echo "      ${OVERLAY}a3b4c5d fix: handle empty config file${RESET}"
 
@@ -107,17 +103,17 @@ demo3() {
     echo "  ${DIV}"
     echo ""
 
-    row "webapp" "synced" "$GREEN" "0"
+    row "webapp" "synced" "$GREEN"
     path "~/repos/webapp"
     echo "      ${OVERLAY}f8a9b0c feat: add user preferences page${RESET}"
 
-    row "cli-tool" "3 behind" "$PEACH" "1"
+    row "cli-tool" "3 behind" "$PEACH"
     path "~/repos/cli-tool"
     commit "d1e2f3a" "feat: streaming output"
     commit "b4c5d6e" "refactor: plugin system"
     commit "a7b8c9d" "fix: windows path handling"
 
-    row "design-system" "1 ahead" "$PEACH" "1"
+    row "design-system" "1 ahead" "$PEACH"
     path "~/repos/design-system"
     commit "e0f1a2b" "feat: new color tokens"
 
