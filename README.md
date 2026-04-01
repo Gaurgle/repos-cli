@@ -116,7 +116,6 @@ repoz [options]
 | `--since DATE` | Show all activity since `DATE` (e.g. `2026-03-15`) |
 | `--today` | Show all activity since midnight |
 | `--all` | Show all divergence, no time filter |
-| `-v` | Also list repos not cloned locally |
 | `-h, --help` | Show help |
 
 By default, `repoz` searches for local clones under the current directory. Set `REPO_CHECK_DIR` to override:

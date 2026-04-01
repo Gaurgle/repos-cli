@@ -53,7 +53,6 @@ Modes (pick one):
   --all           Show all divergence (no time filter)
 
 Options:
-  -v              Also list repos not cloned locally
   -h, --help      Show this help
 
 Time slots default: Work (09–18), Evening (18–00), Night (00–09)
@@ -63,7 +62,6 @@ EOF
 
 # --- Parse args ---
 MODE="auto"
-VERBOSE=false
 SINCE_ARG=""
 
 while [ $# -gt 0 ]; do
@@ -71,7 +69,6 @@ while [ $# -gt 0 ]; do
         --since)  MODE="since"; SINCE_ARG="$2"; shift 2 ;;
         --today)  MODE="today"; shift ;;
         --all)    MODE="all"; shift ;;
-        -v)       VERBOSE=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown: $1"; usage; exit 1 ;;
     esac
@@ -155,6 +152,8 @@ else
             header="all divergence" ;;
     esac
 
+    jq_args=()
+    jq_filter='.'
     if [ -n "${cutoff:-}" ]; then
         if cutoff_epoch=$(date -jf "%Y-%m-%dT%H:%M:%S" "$cutoff" +%s 2>/dev/null); then
             cutoff_utc=$(date -u -r "$cutoff_epoch" +"%Y-%m-%dT%H:%M:%SZ")
@@ -163,16 +162,13 @@ else
         else
             cutoff_utc="${cutoff}Z"
         fi
-        filter_arg="--arg c $cutoff_utc"
+        jq_args=(--arg c "$cutoff_utc")
         jq_filter='select(.pushedAt > $c)'
-    else
-        filter_arg=""
-        jq_filter='.'
     fi
 
     while IFS= read -r name; do
         [ -n "$name" ] && active_repos+=("$name")
-    done < <(echo "$repos_json" | jq -r ${filter_arg} "
+    done < <(echo "$repos_json" | jq -r "${jq_args[@]}" "
         .data.viewer.repositories.nodes[]
         | select(.pushedAt != null)
         | ${jq_filter}
@@ -347,6 +343,22 @@ fi
 has_local_changes=false
 dirty_count=0
 
+count_unpushed() {
+    local repo_path="$1" total=0
+    while IFS= read -r branch; do
+        [ -z "$branch" ] && continue
+        local upstream
+        upstream=$(git -C "$repo_path" rev-parse --abbrev-ref \
+            "${branch}@{upstream}" 2>/dev/null) || continue
+        local a
+        a=$(git -C "$repo_path" rev-list --count \
+            "${upstream}..${branch}" 2>/dev/null || echo 0)
+        total=$(( total + a ))
+    done < <(git -C "$repo_path" for-each-ref \
+        --format='%(refname:short)' refs/heads/ 2>/dev/null)
+    echo "$total"
+}
+
 while IFS= read -r gitdir; do
     repo_path="${gitdir%/.git}"
 
@@ -356,21 +368,9 @@ while IFS= read -r gitdir; do
     name=$(basename "$repo_path")
     display="~${repo_path#$HOME}"
 
-    # Count uncommitted changes (excluding untracked)
     changed=$(git -C "$repo_path" status --porcelain 2>/dev/null \
         | { grep -v '^??' || true; } | wc -l | tr -d ' ')
-
-    # Count unpushed commits (using cached remote refs, no fetch)
-    local_ahead=0
-    while IFS= read -r branch; do
-        [ -z "$branch" ] && continue
-        upstream=$(git -C "$repo_path" rev-parse --abbrev-ref \
-            "${branch}@{upstream}" 2>/dev/null) || continue
-        a=$(git -C "$repo_path" rev-list --count \
-            "${upstream}..${branch}" 2>/dev/null || echo 0)
-        local_ahead=$(( local_ahead + a ))
-    done < <(git -C "$repo_path" for-each-ref \
-        --format='%(refname:short)' refs/heads/ 2>/dev/null)
+    local_ahead=$(count_unpushed "$repo_path")
 
     [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && continue
 
@@ -381,16 +381,12 @@ while IFS= read -r gitdir; do
         has_local_changes=true
     fi
 
-    status=""
     if [ "$local_ahead" -gt 0 ] && [ "$changed" -gt 0 ]; then
-        status="${local_ahead} ahead, ${changed} uncommitted"
-        print_row "$name" "$status" "$YELLOW" "1"
+        print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW" "1"
     elif [ "$local_ahead" -gt 0 ]; then
-        status="${local_ahead} ahead"
-        print_row "$name" "$status" "$GREEN" "1"
+        print_row "$name" "${local_ahead} ahead" "$GREEN" "1"
     else
-        status="${changed} uncommitted"
-        print_row "$name" "$status" "$YELLOW" "1"
+        print_row "$name" "${changed} uncommitted" "$YELLOW" "1"
     fi
     echo "      ${OVERLAY}${display}${RESET}"
     dirty_count=$(( dirty_count + 1 ))
