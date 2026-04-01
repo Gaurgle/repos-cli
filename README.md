@@ -76,7 +76,8 @@ REPO_CHECK_DIR=~/code repoz
 ---
 
 ## Output
-
+```
++! [repoz output] (demo2.png.)
 ```
 repoz — latest active slot: 2026-03-31  Evening (18-00)
 ──────────────────────────────────────────────────────────
