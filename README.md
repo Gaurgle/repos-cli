@@ -8,7 +8,7 @@ If you work on multiple projects and switch between machines — a work laptop a
 
 It's fast because it doesn't check every repo you own — it asks GitHub which repos were recently pushed to, then only fetches those.
 
-![repoz output](demo.png)
+![repoz output](demo1.png)
 
 ## Examples
 
@@ -110,13 +110,13 @@ chmod +x ~/.local/bin/repoz
 repoz [options]
 ```
 
-| Flag | Description |
-|---|---|
-| *(default)* | Find the latest time slot with activity and show those repos |
-| `--since DATE` | Show all activity since `DATE` (e.g. `2026-03-15`) |
-| `--today` | Show all activity since midnight |
-| `--all` | Show all divergence, no time filter |
-| `-h, --help` | Show help |
+| Flag           | Description                                                  |
+| -------------- | ------------------------------------------------------------ |
+| _(default)_    | Find the latest time slot with activity and show those repos |
+| `--since DATE` | Show all activity since `DATE` (e.g. `2026-03-15`)           |
+| `--today`      | Show all activity since midnight                             |
+| `--all`        | Show all divergence, no time filter                          |
+| `-h, --help`   | Show help                                                    |
 
 By default, `repoz` searches for local clones under the current directory. Set `REPO_CHECK_DIR` to override:
 
@@ -142,20 +142,20 @@ REPO_CHECK_DIR=~/repos
 
 The three time slots are derived from `WORK_START` and `WORK_END`:
 
-| Slot | Default | Description |
-|---|---|---|
-| Work | 09:00 – 18:00 | `WORK_START` to `WORK_END` |
-| Evening | 18:00 – 00:00 | `WORK_END` to midnight |
-| Night | 00:00 – 09:00 | Midnight to `WORK_START` |
+| Slot    | Default       | Description                |
+| ------- | ------------- | -------------------------- |
+| Work    | 09:00 – 18:00 | `WORK_START` to `WORK_END` |
+| Evening | 18:00 – 00:00 | `WORK_END` to midnight     |
+| Night   | 00:00 – 09:00 | Midnight to `WORK_START`   |
 
 All settings are optional. Without a config file, defaults are used.
 
 ## Output sections
 
-| Section | What it shows |
-|---|---|
-| **Main list** | Repos with GitHub activity found under your current directory |
-| **Also active** | Same repos found in other locations on your machine (e.g. `~/work` vs `~/repos`) |
+| Section           | What it shows                                                                                                             |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **Main list**     | Repos with GitHub activity found under your current directory                                                             |
+| **Also active**   | Same repos found in other locations on your machine (e.g. `~/work` vs `~/repos`)                                          |
 | **Local changes** | Repos under your current directory with uncommitted files or unpushed commits, even if they had no recent GitHub activity |
 
 ## SSH setup (recommended)
