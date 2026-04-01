@@ -323,8 +323,8 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
             -iname "$name" \
             -exec test -d "{}/.git" \; -print -quit 2>/dev/null || true)
 
-        # Skip if it's actually under REPO_DIR (already checked in pass 1)
-        case "$local_path" in "$REPO_DIR"/*) local_path="" ;; esac
+        # Skip if already shown in pass 1
+        case "$checked_paths" in *"|${local_path}"*) continue ;; esac
 
         if ! $found_elsewhere; then
             echo ""
