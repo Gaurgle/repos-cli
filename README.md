@@ -118,25 +118,67 @@ By default, `repos` searches for local clones under the current directory. Set `
 REPO_CHECK_DIR=~/code repos
 ```
 
-## Time slots
+## Configuration
 
-The default mode groups GitHub push activity into time slots to show only what's relevant to your current session:
+Create `~/.config/repos/config` to customize time slots and other settings:
 
-| Slot | Hours |
-|---|---|
-| Work | 09:00 – 18:00 |
-| Evening | 18:00 – 00:00 |
-| Night | 00:00 – 09:00 |
+```bash
+# Time slot boundaries (24h format)
+WORK_START=9
+WORK_END=18
 
-It picks the most recent slot with any activity. If you pushed code at work and now you're home, it shows what happened during that work session.
+# How many repos to check (default: 50)
+REPO_LIMIT=50
+
+# Default search directory (overridden by REPO_CHECK_DIR env var)
+REPO_CHECK_DIR=~/repos
+```
+
+The three time slots are derived from `WORK_START` and `WORK_END`:
+
+| Slot | Default | Description |
+|---|---|---|
+| Work | 09:00 – 18:00 | `WORK_START` to `WORK_END` |
+| Evening | 18:00 – 00:00 | `WORK_END` to midnight |
+| Night | 00:00 – 09:00 | Midnight to `WORK_START` |
+
+All settings are optional. Without a config file, defaults are used.
 
 ## Output sections
 
 | Section | What it shows |
 |---|---|
 | **Main list** | Repos with GitHub activity found under your current directory |
-| **Also active (elsewhere)** | Same repos found in other locations on your machine (e.g. `~/work` vs `~/repos`) |
+| **Also active** | Same repos found in other locations on your machine (e.g. `~/work` vs `~/repos`) |
 | **Local changes** | Repos under your current directory with uncommitted files or unpushed commits, even if they had no recent GitHub activity |
+
+## SSH setup (recommended)
+
+`repos` runs `git fetch` on active repos. If your repos use SSH remotes (`git@github.com:...`), you'll want your SSH key loaded so you don't get passphrase prompts for every repo.
+
+**macOS** — store your passphrase in the Keychain (once):
+
+```bash
+ssh-add --apple-use-keychain ~/.ssh/id_rsa
+```
+
+And add to `~/.ssh/config`:
+
+```
+Host *
+  AddKeysToAgent yes
+  UseKeychain yes
+```
+
+This is the standard secure approach — your private key stays encrypted on disk, and the passphrase is stored in the macOS Keychain (which is encrypted and protected by your login password). The ssh-agent provides the key to git without exposing it.
+
+**Linux** — use `ssh-agent` or your desktop's keyring. Most distros start an agent automatically. Run `ssh-add` once per session, or configure your keyring to unlock it on login.
+
+**HTTPS remotes** — if your repos use HTTPS URLs instead of SSH, `gh auth login` handles authentication. You can switch existing repos to SSH with:
+
+```bash
+git remote set-url origin git@github.com:user/repo.git
+```
 
 ## Requirements
 
@@ -144,6 +186,8 @@ It picks the most recent slot with any activity. If you pushed code at work and 
 - **[gh](https://cli.github.com/)** — GitHub CLI, authenticated (`gh auth login`)
 - **[jq](https://jqlang.github.io/jq/)** — JSON processor
 - **git**
+
+Works with both personal repos and organization/team repos.
 
 ## License
 
