@@ -170,6 +170,7 @@ needs_pull=0
 has_unpushed=0
 not_local=0
 synced=0
+dirty_count=0
 W=$(( DIV_W - 4 ))
 
 print_row() {
@@ -208,16 +209,30 @@ check_repo() {
     done < <(git -C "$local_path" for-each-ref \
         --format='%(refname:short)' refs/heads/ 2>/dev/null)
 
-    if (( behind > 0 && ahead > 0 )); then
-        print_row "$name" "$behind behind, $ahead ahead" "$PEACH"
+    # Check for uncommitted/untracked changes
+    local dirty
+    dirty=$(git -C "$local_path" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+
+    local status_parts=""
+    if (( behind > 0 )); then
+        status_parts="${behind} behind"
         needs_pull=$(( needs_pull + 1 ))
+    fi
+    if (( ahead > 0 )); then
+        [ -n "$status_parts" ] && status_parts="${status_parts}, "
+        status_parts="${status_parts}${ahead} ahead"
         has_unpushed=$(( has_unpushed + 1 ))
-    elif (( behind > 0 )); then
-        print_row "$name" "$behind behind" "$PEACH"
-        needs_pull=$(( needs_pull + 1 ))
-    elif (( ahead > 0 )); then
-        print_row "$name" "$ahead ahead" "$PEACH"
-        has_unpushed=$(( has_unpushed + 1 ))
+    fi
+    if (( dirty > 0 )); then
+        [ -n "$status_parts" ] && status_parts="${status_parts}, "
+        status_parts="${status_parts}${dirty} uncommitted"
+        dirty_count=$(( dirty_count + 1 ))
+    fi
+
+    if [ -n "$status_parts" ]; then
+        local color="$PEACH"
+        (( dirty > 0 )) && color="$YELLOW"
+        print_row "$name" "$status_parts" "$color"
     else
         print_row "$name" "synced" "$GREEN"
         synced=$(( synced + 1 ))
@@ -299,7 +314,6 @@ fi
 
 # --- Pass 3: local repos with uncommitted or unpushed changes ---
 has_local_changes=false
-dirty_count=0
 
 count_unpushed() {
     local repo_path="$1" total=0
