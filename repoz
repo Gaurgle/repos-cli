@@ -327,7 +327,7 @@ while IFS= read -r gitdir; do
     display="~${repo_path#$HOME}"
 
     changed=$(git -C "$repo_path" status --porcelain 2>/dev/null \
-        | { grep -v '^??' || true; } | wc -l | tr -d ' ')
+        | wc -l | tr -d ' ')
     local_ahead=$(count_unpushed "$repo_path")
 
     [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && continue
