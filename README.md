@@ -7,11 +7,9 @@
 
 See what changed across your repos since you last sat down.
 
-See what changed across your repos since you last sat down.
-
 If you work on multiple projects and switch between machines — a work laptop and a home setup, say — you know the feeling. You sit down, and you're not sure which repos have new commits you need to pull, which ones you forgot to push last night, or where you left uncommitted work.
 
-repoz gives you that overview in one command. It checks GitHub, compares with what you have locally, and shows you the status of everything that's been active recently. That's it. No setup, no config files, no background processes. Just a bash script, `gh`, and `jq`.
+repoz gives you that overview in one command. It checks GitHub, compares with what you have locally, and shows you the status of everything that's been active recently — commits behind, ahead, uncommitted changes, and untracked files. That's it. No setup, no config files, no background processes. Just a bash script, `gh`, and `jq`.
 
 It's fast because it doesn't check every repo you own — it asks GitHub which repos were recently pushed to, then only fetches those.
 
@@ -94,10 +92,10 @@ repoz — latest active slot: 2026-03-31  Evening (18-00)
     ~/repos/acme/frontend-app
     a1b2c3d feat: add dark mode toggle
     e4f5g6h fix: navbar responsive breakpoint
-  backend-api ····································· synced
+  backend-api ························ 3 uncommitted
     ~/repos/acme/backend-api
     d7e8f9a refactor: extract auth middleware
-  mobile-app ····································· 1 ahead
+  mobile-app ··················· 1 ahead, 2 uncommitted
     ~/repos/acme/mobile-app
     b2c3d4e feat: push notification support
 
@@ -113,14 +111,14 @@ repoz — latest active slot: 2026-03-31  Evening (18-00)
     ~/repos/acme/infra
 
 ──────────────────────────────────────────────────────────
-2 behind · 1 synced · 1 ahead · 1 uncommitted
+1 behind · 1 ahead · 2 uncommitted
 ```
 
 | Section | What it shows |
 |---------|---------------|
 | Main list | Repos with GitHub activity found under your search directory |
 | Also active | Same repos found in other locations on your machine |
-| Local changes | Repos with uncommitted files or unpushed commits, even if there was no recent GitHub activity |
+| Local changes | Repos with uncommitted or untracked files, even if there was no recent GitHub activity |
 
 ---
 
