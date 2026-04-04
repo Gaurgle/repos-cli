@@ -159,9 +159,7 @@ echo "  ${DIV}"
 
 if [ ${#active_repos[@]} -eq 0 ]; then
     echo ""
-    echo "  ${GREEN}No activity.${RESET}"
-    echo ""
-    exit 0
+    echo "  ${GREEN}No GitHub activity.${RESET}"
 fi
 echo ""
 
