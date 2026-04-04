@@ -48,8 +48,12 @@ Only checks repos found under the current directory (or REPO_CHECK_DIR).
 Modes (pick one):
   (default)       Show activity since the previous time slot
   --since DATE    Show all activity since DATE (e.g. 2026-03-15)
-  --today         Show all activity since midnight
-  --all           Show all divergence (no time filter)
+  --since yesterday  Relative: yesterday
+  --since 3d      Relative: 3 days ago
+  --since 1w      Relative: 1 week ago
+  -t, --today     Show all activity since midnight
+  -a, --all       Show all divergence (no time filter)
+  -d, --dirty     Local only — show uncommitted/untracked/unpushed (no GitHub)
 
 Options:
   -h, --help      Show this help
@@ -67,12 +71,112 @@ SINCE_ARG=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --since)  MODE="since"; SINCE_ARG="$2"; shift 2 ;;
-        --today)  MODE="today"; shift ;;
-        --all)    MODE="all"; shift ;;
+        -t|--today)  MODE="today"; shift ;;
+        -a|--all)    MODE="all"; shift ;;
+        -d|--dirty)  MODE="dirty"; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown: $1"; usage; exit 1 ;;
     esac
 done
+
+# --- Resolve relative dates for --since ---
+if [ "$MODE" = "since" ] && [ -n "$SINCE_ARG" ]; then
+    case "$SINCE_ARG" in
+        yesterday)
+            if SINCE_ARG=$(date -v-1d +%Y-%m-%d 2>/dev/null); then :
+            else SINCE_ARG=$(date -d "yesterday" +%Y-%m-%d); fi
+            ;;
+        *d)
+            days="${SINCE_ARG%d}"
+            if SINCE_ARG=$(date -v-${days}d +%Y-%m-%d 2>/dev/null); then :
+            else SINCE_ARG=$(date -d "${days} days ago" +%Y-%m-%d); fi
+            ;;
+        *w)
+            weeks="${SINCE_ARG%w}"
+            days=$(( weeks * 7 ))
+            if SINCE_ARG=$(date -v-${days}d +%Y-%m-%d 2>/dev/null); then :
+            else SINCE_ARG=$(date -d "${days} days ago" +%Y-%m-%d); fi
+            ;;
+    esac
+fi
+
+DIV_W=58
+DIV="${SURFACE}$(printf '%*s' "$DIV_W" '' | tr ' ' '─')${RESET}"
+
+section_div() {
+    local label="$1"
+    local prefix="── ${label} "
+    local remain=$(( DIV_W - ${#prefix} ))
+    printf '  %s── %s%s %s%s%s\n' \
+        "$SURFACE" "$MAUVE" "$label" "$SURFACE" "$(printf '%*s' "$remain" '' | tr ' ' '─')" "$RESET"
+}
+
+# --- Dirty mode: local only, no GitHub ---
+if [ "$MODE" = "dirty" ]; then
+    echo ""
+    echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— local changes${RESET}"
+    echo "  ${DIV}"
+    echo ""
+
+    W=$(( DIV_W - 4 ))
+    print_row() {
+        local name="$1" status="$2" color="$3"
+        local pad=$(( W - ${#name} - ${#status} ))
+        (( pad < 3 )) && pad=3
+        local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
+        printf "    ${SAPPHIRE}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
+    }
+
+    count_unpushed() {
+        local repo_path="$1" total=0
+        while IFS= read -r branch; do
+            [ -z "$branch" ] && continue
+            local upstream
+            upstream=$(git -C "$repo_path" rev-parse --abbrev-ref \
+                "${branch}@{upstream}" 2>/dev/null) || continue
+            local a
+            a=$(git -C "$repo_path" rev-list --count \
+                "${upstream}..${branch}" 2>/dev/null || echo 0)
+            total=$(( total + a ))
+        done < <(git -C "$repo_path" for-each-ref \
+            --format='%(refname:short)' refs/heads/ 2>/dev/null)
+        echo "$total"
+    }
+
+    dirty_count=0
+    while IFS= read -r gitdir; do
+        repo_path="${gitdir%/.git}"
+        name=$(basename "$repo_path")
+        display="~${repo_path#$HOME}"
+
+        changed=$(git -C "$repo_path" status --porcelain 2>/dev/null \
+            | wc -l | tr -d ' ')
+        local_ahead=$(count_unpushed "$repo_path")
+
+        [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && continue
+
+        if [ "$local_ahead" -gt 0 ] && [ "$changed" -gt 0 ]; then
+            print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW"
+        elif [ "$local_ahead" -gt 0 ]; then
+            print_row "$name" "${local_ahead} ahead" "$PEACH"
+        else
+            print_row "$name" "${changed} uncommitted" "$YELLOW"
+        fi
+        echo "      ${OVERLAY}${display}${RESET}"
+        dirty_count=$(( dirty_count + 1 ))
+
+    done < <(find "$REPO_DIR" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort)
+
+    echo ""
+    echo "  ${DIV}"
+    if [ "$dirty_count" -eq 0 ]; then
+        echo "  ${GREEN}All clean.${RESET}"
+    else
+        echo "  ${YELLOW}${dirty_count} dirty${RESET}"
+    fi
+    echo ""
+    exit 0
+fi
 
 # --- One GitHub API call ---
 repos_json=$(gh api graphql -f query="
@@ -141,17 +245,6 @@ done < <(echo "$repos_json" | jq -r "${jq_args[@]}" "
     | ${jq_filter}
     | .name
 ")
-
-DIV_W=58
-DIV="${SURFACE}$(printf '%*s' "$DIV_W" '' | tr ' ' '─')${RESET}"
-
-section_div() {
-    local label="$1"
-    local prefix="── ${label} "
-    local remain=$(( DIV_W - ${#prefix} ))
-    printf '  %s── %s%s %s%s%s\n' \
-        "$SURFACE" "$MAUVE" "$label" "$SURFACE" "$(printf '%*s' "$remain" '' | tr ' ' '─')" "$RESET"
-}
 
 echo ""
 echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— ${header}${RESET}"
