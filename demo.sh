@@ -123,9 +123,43 @@ demo3() {
     echo ""
 }
 
+demo4() {
+    echo ""
+    echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— latest active slot: 2026-04-05  Work (09-18)${RESET}"
+    echo "  ${DIV}"
+    echo ""
+
+    row "notez-cli" "1 ahead, 2 PRs" "$PEACH"
+    path "~/Repos/notez-cli"
+    commit "a80cfd1" "feat: flag system, two-level subtasks"
+
+    row "webapp" "3 behind, 1 PR" "$PEACH"
+    path "~/Repos/webapp"
+    commit "b2c3d4e" "feat: user dashboard redesign"
+    commit "c5d6e7f" "fix: auth token refresh"
+    commit "d8e9f0a" "refactor: api client"
+
+    row "repoz" "synced" "$GREEN"
+    path "~/Repos/repoz"
+    echo "      ${OVERLAY}dba24ae feat: --prs flag for open PR counts${RESET}"
+
+    echo ""
+    section_div "local changes"
+    echo ""
+
+    row "side-project" "4 uncommitted, 1 PR" "$YELLOW"
+    path "~/Repos/side-project"
+
+    echo ""
+    echo "  ${DIV}"
+    echo "  ${PEACH}1 behind${RESET} ${SURFACE}·${RESET} ${PEACH}1 ahead${RESET} ${SURFACE}·${RESET} ${YELLOW}1 uncommitted${RESET} ${SURFACE}·${RESET} ${GREEN}1 synced${RESET} ${SURFACE}·${RESET} ${MAUVE}4 open PRs${RESET}"
+    echo ""
+}
+
 case "${1:-all}" in
     1) demo1 ;;
     2) demo2 ;;
     3) demo3 ;;
-    all) demo1; demo2; demo3 ;;
+    4) demo4 ;;
+    all) demo1; demo2; demo3; demo4 ;;
 esac
