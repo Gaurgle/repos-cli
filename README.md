@@ -74,6 +74,8 @@ repoz [options]
 | `--since DATE` | Show all activity since DATE (e.g. `2026-03-15`) |
 | `--today` | Show all activity since midnight |
 | `--all` | Show all divergence, no time filter |
+| `-d, --dirty` | Local only — show uncommitted/untracked/unpushed (no GitHub) |
+| `-p, --prs` | Also show open pull requests for each repo |
 | `-h, --help` | Show help |
 
 By default, repoz searches for local clones under the current directory. Set `REPO_CHECK_DIR` to search somewhere specific:
