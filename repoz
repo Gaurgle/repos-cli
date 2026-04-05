@@ -56,6 +56,7 @@ Modes (pick one):
   -d, --dirty     Local only — show uncommitted/untracked/unpushed (no GitHub)
 
 Options:
+  -p, --prs       Also show open pull requests for each repo
   -h, --help      Show this help
 
 Time slots: Work (09–18), Evening (18–00). Default mode shows activity
@@ -67,6 +68,7 @@ EOF
 # --- Parse args ---
 MODE="auto"
 SINCE_ARG=""
+SHOW_PRS=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -74,6 +76,7 @@ while [ $# -gt 0 ]; do
         -t|--today)  MODE="today"; shift ;;
         -a|--all)    MODE="all"; shift ;;
         -d|--dirty)  MODE="dirty"; shift ;;
+        -p|--prs)    SHOW_PRS=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown: $1"; usage; exit 1 ;;
     esac
@@ -179,11 +182,16 @@ if [ "$MODE" = "dirty" ]; then
 fi
 
 # --- One GitHub API call ---
+if $SHOW_PRS; then
+    pr_fields="pullRequests(states: OPEN) { totalCount }"
+else
+    pr_fields=""
+fi
 repos_json=$(gh api graphql -f query="
   { viewer {
     repositories(first: ${REPO_LIMIT}, orderBy: {field: PUSHED_AT, direction: DESC},
       affiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER]) {
-      nodes { name, pushedAt }
+      nodes { name, pushedAt ${pr_fields} }
     }
   }}
 " 2>/dev/null) || { echo "  Failed to reach GitHub. Run: gh auth login"; exit 1; }
@@ -245,6 +253,23 @@ done < <(echo "$repos_json" | jq -r "${jq_args[@]}" "
     | ${jq_filter}
     | .name
 ")
+
+# Build PR count lookup when --prs is enabled (newline-separated "name\tcount")
+pr_lookup=""
+open_prs_total=0
+if $SHOW_PRS; then
+    pr_lookup=$(echo "$repos_json" | jq -r '
+        .data.viewer.repositories.nodes[]
+        | select(.pullRequests != null)
+        | select(.pullRequests.totalCount > 0)
+        | "\(.name)\t\(.pullRequests.totalCount)"
+    ' 2>/dev/null)
+fi
+
+# Lookup helper: get_pr_count <repo_name>
+get_pr_count() {
+    echo "$pr_lookup" | awk -F'\t' -v name="$1" '$1 == name { print $2; exit }'
+}
 
 echo ""
 echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— ${header}${RESET}"
@@ -318,6 +343,20 @@ check_repo() {
         [ -n "$status_parts" ] && status_parts="${status_parts}, "
         status_parts="${status_parts}${dirty} uncommitted"
         dirty_count=$(( dirty_count + 1 ))
+    fi
+
+    # Append PR count if --prs and repo has open PRs
+    local pr_text=""
+    if $SHOW_PRS; then
+        local pc
+        pc=$(get_pr_count "$name")
+        pc="${pc:-0}"
+        if (( pc > 0 )); then
+            [ -n "$status_parts" ] && status_parts="${status_parts}, "
+            status_parts="${status_parts}${pc} PR"
+            (( pc > 1 )) && status_parts="${status_parts}s"
+            open_prs_total=$(( open_prs_total + pc ))
+        fi
     fi
 
     if [ -n "$status_parts" ]; then
@@ -397,7 +436,18 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
             check_repo "$name" "$local_path"
             checked_paths="${checked_paths}|${local_path}"
         else
-            print_row "$name" "not cloned" "$OVERLAY"
+            local nc_status="not cloned"
+            if $SHOW_PRS; then
+                local pc
+        pc=$(get_pr_count "$name")
+        pc="${pc:-0}"
+                if (( pc > 0 )); then
+                    nc_status="not cloned, ${pc} PR"
+                    (( pc > 1 )) && nc_status="${nc_status}s"
+                    open_prs_total=$(( open_prs_total + pc ))
+                fi
+            fi
+            print_row "$name" "$nc_status" "$OVERLAY"
             not_local=$(( not_local + 1 ))
         fi
     done
@@ -465,6 +515,7 @@ parts=""
 [ $dirty_count -gt 0 ]   && parts="${parts}${YELLOW}${dirty_count} uncommitted${RESET} ${SURFACE}·${RESET} "
 [ $synced -gt 0 ]        && parts="${parts}${GREEN}${synced} synced${RESET} ${SURFACE}·${RESET} "
 [ $not_local -gt 0 ]     && parts="${parts}${OVERLAY}${not_local} not local${RESET} ${SURFACE}·${RESET} "
+$SHOW_PRS && [ $open_prs_total -gt 0 ] && parts="${parts}${MAUVE}${open_prs_total} open PRs${RESET} ${SURFACE}·${RESET} "
 parts="${parts% ${SURFACE}·${RESET} }"
 echo "  ${parts}"
 echo ""

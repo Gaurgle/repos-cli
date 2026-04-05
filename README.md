@@ -1,9 +1,12 @@
 # repoz
 
 ![License](https://img.shields.io/github/license/Gaurgle/repoz)
+![Open Source](https://img.shields.io/badge/open%20source-%E2%9D%A4-c4a7e7)
 ![Shell](https://img.shields.io/badge/shell-bash-89e051)
-![gh](https://img.shields.io/badge/requires-gh-blue)
-![jq](https://img.shields.io/badge/requires-jq-blue)
+![Platform](https://img.shields.io/badge/platform-macOS%20·%20Linux-lightgrey)
+
+![Features](https://img.shields.io/badge/pull%20·%20push%20·%20uncommitted%20·%20PRs-89b4fa)
+![Requires](https://img.shields.io/badge/requires-gh%20·%20jq-7f849c)
 
 See what changed across your repos since you last sat down.
 
