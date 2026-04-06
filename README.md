@@ -14,7 +14,7 @@ If you work on multiple projects and switch between machines — a work laptop a
 
 repoz gives you that overview in one command. It checks GitHub, compares with what you have locally, and shows you the status of everything that's been active recently — commits behind, ahead, uncommitted changes, and untracked files. That's it. No setup, no config files, no background processes. Just a bash script, `gh`, and `jq`.
 
-It's fast because it doesn't check every repo you own — it asks GitHub which repos were recently pushed to, then only fetches those.
+It's fast because it doesn't check every repo you own — it asks GitHub which repos were recently pushed to, then fetches them in parallel.
 
 ---
 
@@ -68,15 +68,38 @@ chmod +x ~/.local/bin/repoz
 repoz [options]
 ```
 
+### Modes (pick one)
+
 | Flag | Description |
 |------|-------------|
 | *(default)* | Find the latest time slot with activity and show those repos |
-| `--since DATE` | Show all activity since DATE (e.g. `2026-03-15`) |
-| `--today` | Show all activity since midnight |
-| `--all` | Show all divergence, no time filter |
+| `--since DATE` | Show all activity since DATE (e.g. `2026-03-15`, `yesterday`, `3d`, `1w`) |
+| `--before DATE` | Only show repos pushed before DATE (same relative formats as `--since`) |
+| `-t, --today` | Show all activity since midnight |
+| `-a, --all` | Show all divergence, no time filter |
 | `-d, --dirty` | Local only — show uncommitted/untracked/unpushed (no GitHub) |
+
+### Options (combinable)
+
+| Flag | Description |
+|------|-------------|
+| `--author NAME` | Filter displayed commits by author (partial match) |
+| `-s, --stat` | Show diff stats per commit (`+42 -17`) |
 | `-p, --prs` | Also show open pull requests for each repo |
 | `-h, --help` | Show help |
+
+### Examples
+
+```sh
+repoz                                    # what changed since I left?
+repoz --since 1w                         # last week
+repoz -s --since 1w                      # last week with diff stats on all repos
+repoz --since 1w --author andreas        # only my commits
+repoz --since 1w --before 3d             # last week, excluding last 3 days
+repoz -a -p                              # everything + PRs
+repoz -d                                 # local dirty repos only
+repoz -t                                 # today
+```
 
 By default, repoz searches for local clones under the current directory. Set `REPO_CHECK_DIR` to search somewhere specific:
 
@@ -92,33 +115,28 @@ REPO_CHECK_DIR=~/code repoz
 
 ![repoz — synced repos](demo2.png)
 ```
-repoz — latest active slot: 2026-03-31  Evening (18-00)
-──────────────────────────────────────────────────────────
+repoz — since 2026-03-31  Evening (18-00)
+──────────────────────────────────────────────────────────────────────
 
-  frontend-app ·································· 2 behind
-    ~/repos/acme/frontend-app
-    a1b2c3d feat: add dark mode toggle
-    e4f5g6h fix: navbar responsive breakpoint
-  backend-api ························ 3 uncommitted
-    ~/repos/acme/backend-api
-    d7e8f9a refactor: extract auth middleware
-  mobile-app ··················· 1 ahead, 2 uncommitted
-    ~/repos/acme/mobile-app
-    b2c3d4e feat: push notification support
+  frontend-app ~/repos/acme/frontend-app ··················· 2 behind
+    a1b2c3d feat: add dark mode toggle ··········· +18 -3  alice
+    e4f5g6h fix: navbar responsive breakpoint ····· +4 -2  bob
+  backend-api ~/repos/acme/backend-api ············· 3 uncommitted
+    d7e8f9a refactor: extract auth middleware ···· +42 -17  alice
+  mobile-app ~/repos/acme/mobile-app ········ 1 ahead, 2 uncommitted
+    b2c3d4e feat: push notification support ······ +95 -8  alice
 
-── also active ───────────────────────────────────────────
+── also active ───────────────────────────────────────────────────────
 
-  docs ·········································· 1 behind
-    ~/work/docs
-    c5d6e7f docs: update API reference
+  docs ~/work/docs ············································ 1 behind
+    c5d6e7f docs: update API reference ·················· +12  bob
 
-── local changes ─────────────────────────────────────────
+── local changes ─────────────────────────────────────────────────────
 
-  infra ···································· 2 uncommitted
-    ~/repos/acme/infra
+  infra ~/repos/acme/infra ···························· 2 uncommitted
 
-──────────────────────────────────────────────────────────
-1 behind · 1 ahead · 2 uncommitted
+──────────────────────────────────────────────────────────────────────
+2 behind · 1 ahead · 2 uncommitted · 1 synced
 ```
 
 | Section | What it shows |
@@ -126,6 +144,10 @@ repoz — latest active slot: 2026-03-31  Evening (18-00)
 | Main list | Repos with GitHub activity found under your search directory |
 | Also active | Same repos found in other locations on your machine |
 | Local changes | Repos with uncommitted or untracked files, even if there was no recent GitHub activity |
+
+Each commit line shows the author name. When a repo has divergence (behind, ahead, or uncommitted), diff stats (`+lines -lines`) are shown automatically. Use `-s` to force diff stats on synced repos too.
+
+The output width adapts to your terminal size.
 
 ---
 

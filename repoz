@@ -8,6 +8,10 @@ CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/repoz/config"
 WORK_START=9
 WORK_END=18
 REPO_LIMIT=50
+TERM_W=$(stty size </dev/tty 2>/dev/null | awk '{print $2}') || true
+: "${TERM_W:=${COLUMNS:-0}}"
+(( TERM_W < 40 )) && TERM_W=$(tput cols 2>/dev/null || echo 80)
+(( TERM_W < 40 )) && TERM_W=80
 
 # --- Load config ---
 if [ -f "$CONFIG_FILE" ]; then
@@ -29,6 +33,9 @@ YELLOW=$(printf '\033[38;2;249;226;175m')   # uncommitted
 SAPPHIRE=$(printf '\033[38;2;116;199;236m') # repo names
 LAVENDER=$(printf '\033[38;2;180;190;254m') # header
 MAUVE=$(printf '\033[38;2;203;166;247m')    # section labels
+HASH_COLOR=$(printf '\033[38;2;140;155;180m') # commit hashes (muted blue-gray)
+DIFF_ADD=$(printf '\033[38;2;134;194;134m') # diff +N (mellow green)
+DIFF_DEL=$(printf '\033[38;2;210;140;140m') # diff -N (mellow red)
 OVERLAY=$(printf '\033[38;2;127;132;156m')  # paths, subtle text
 SURFACE=$(printf '\033[38;2;69;71;90m')     # dots, dividers
 BOLD=$(printf '\033[1m')
@@ -56,6 +63,9 @@ Modes (pick one):
   -d, --dirty     Local only — show uncommitted/untracked/unpushed (no GitHub)
 
 Options:
+  --author NAME   Filter displayed commits by author (partial match)
+  --before DATE   Only show repos pushed before DATE (same formats as --since)
+  -s, --stat      Show diff stats per commit (+lines/-lines)
   -p, --prs       Also show open pull requests for each repo
   -h, --help      Show this help
 
@@ -68,14 +78,20 @@ EOF
 # --- Parse args ---
 MODE="auto"
 SINCE_ARG=""
+BEFORE_ARG=""
+AUTHOR_FILTER=""
 SHOW_PRS=false
+SHOW_STAT=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
         --since)  MODE="since"; SINCE_ARG="$2"; shift 2 ;;
+        --before) BEFORE_ARG="$2"; shift 2 ;;
+        --author) AUTHOR_FILTER="$2"; shift 2 ;;
         -t|--today)  MODE="today"; shift ;;
         -a|--all)    MODE="all"; shift ;;
         -d|--dirty)  MODE="dirty"; shift ;;
+        -s|--stat)   SHOW_STAT=true; shift ;;
         -p|--prs)    SHOW_PRS=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) echo "Unknown: $1"; usage; exit 1 ;;
@@ -103,7 +119,28 @@ if [ "$MODE" = "since" ] && [ -n "$SINCE_ARG" ]; then
     esac
 fi
 
-DIV_W=58
+# --- Resolve relative dates for --before ---
+if [ -n "$BEFORE_ARG" ]; then
+    case "$BEFORE_ARG" in
+        yesterday)
+            if BEFORE_ARG=$(date -v-1d +%Y-%m-%d 2>/dev/null); then :
+            else BEFORE_ARG=$(date -d "yesterday" +%Y-%m-%d); fi
+            ;;
+        *d)
+            days="${BEFORE_ARG%d}"
+            if BEFORE_ARG=$(date -v-${days}d +%Y-%m-%d 2>/dev/null); then :
+            else BEFORE_ARG=$(date -d "${days} days ago" +%Y-%m-%d); fi
+            ;;
+        *w)
+            weeks="${BEFORE_ARG%w}"
+            days=$(( weeks * 7 ))
+            if BEFORE_ARG=$(date -v-${days}d +%Y-%m-%d 2>/dev/null); then :
+            else BEFORE_ARG=$(date -d "${days} days ago" +%Y-%m-%d); fi
+            ;;
+    esac
+fi
+
+DIV_W=$(( TERM_W - 4 ))
 DIV="${SURFACE}$(printf '%*s' "$DIV_W" '' | tr ' ' '─')${RESET}"
 
 section_div() {
@@ -114,21 +151,28 @@ section_div() {
         "$SURFACE" "$MAUVE" "$label" "$SURFACE" "$(printf '%*s' "$remain" '' | tr ' ' '─')" "$RESET"
 }
 
+W=$(( DIV_W - 4 ))
+
+print_row() {
+    local name="$1" status="$2" color="$3" path="${4:-}"
+    local label="$name"
+    [ -n "$path" ] && label="${name} ${OVERLAY}${path}${RESET}"
+    local label_len=${#name}
+    [ -n "$path" ] && label_len=$(( ${#name} + 1 + ${#path} ))
+    local pad=$(( W - label_len - ${#status} ))
+    (( pad < 3 )) && pad=3
+    local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
+    printf "    ${SAPPHIRE}%s${RESET}" "$name"
+    [ -n "$path" ] && printf " ${OVERLAY}%s${RESET}" "$path"
+    printf " ${SURFACE}%s${RESET} %s%s${RESET}\n" "$dots" "$color" "$status"
+}
+
 # --- Dirty mode: local only, no GitHub ---
 if [ "$MODE" = "dirty" ]; then
     echo ""
     echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— local changes${RESET}"
     echo "  ${DIV}"
     echo ""
-
-    W=$(( DIV_W - 4 ))
-    print_row() {
-        local name="$1" status="$2" color="$3"
-        local pad=$(( W - ${#name} - ${#status} ))
-        (( pad < 3 )) && pad=3
-        local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
-        printf "    ${SAPPHIRE}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
-    }
 
     count_unpushed() {
         local repo_path="$1" total=0
@@ -159,13 +203,12 @@ if [ "$MODE" = "dirty" ]; then
         [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && continue
 
         if [ "$local_ahead" -gt 0 ] && [ "$changed" -gt 0 ]; then
-            print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW"
+            print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW" "$display"
         elif [ "$local_ahead" -gt 0 ]; then
-            print_row "$name" "${local_ahead} ahead" "$PEACH"
+            print_row "$name" "${local_ahead} ahead" "$PEACH" "$display"
         else
-            print_row "$name" "${changed} uncommitted" "$YELLOW"
+            print_row "$name" "${changed} uncommitted" "$YELLOW" "$display"
         fi
-        echo "      ${OVERLAY}${display}${RESET}"
         dirty_count=$(( dirty_count + 1 ))
 
     done < <(find "$REPO_DIR" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort)
@@ -245,6 +288,25 @@ if [ -n "$cutoff" ]; then
     jq_filter='select(.pushedAt > $c)'
 fi
 
+# --- Filter repos by --before ---
+if [ -n "$BEFORE_ARG" ]; then
+    before_ts="$BEFORE_ARG"
+    case "$before_ts" in ????-??-??) before_ts="${before_ts}T23:59:59" ;; esac
+    if before_epoch=$(date -jf "%Y-%m-%dT%H:%M:%S" "$before_ts" +%s 2>/dev/null); then
+        before_utc=$(date -u -r "$before_epoch" +"%Y-%m-%dT%H:%M:%SZ")
+    elif before_epoch=$(date -d "$before_ts" +%s 2>/dev/null); then
+        before_utc=$(date -u -d "@$before_epoch" +"%Y-%m-%dT%H:%M:%SZ")
+    else
+        before_utc="${before_ts}Z"
+    fi
+    jq_args+=(--arg b "$before_utc")
+    jq_filter="${jq_filter} | select(.pushedAt < \$b)"
+    header="${header} → before ${BEFORE_ARG}"
+fi
+
+# --- Append author to header ---
+[ -n "$AUTHOR_FILTER" ] && header="${header} (author: ${AUTHOR_FILTER})"
+
 while IFS= read -r name; do
     [ -n "$name" ] && active_repos+=("$name")
 done < <(echo "$repos_json" | jq -r "${jq_args[@]}" "
@@ -287,22 +349,102 @@ has_unpushed=0
 not_local=0
 synced=0
 dirty_count=0
-W=$(( DIV_W - 4 ))
 
-print_row() {
-    local name="$1" status="$2" color="$3"
-    local pad=$(( W - ${#name} - ${#status} ))
-    (( pad < 3 )) && pad=3
+# Print a single commit line with author and optional diff-stat
+print_commit_line() {
+    local hash="$1" author="$2" message="$3" ins="$4" del="$5"
+
+    # Build right side (plain text for width calc)
+    local stat=""
+    if [ "$ins" -gt 0 ] || [ "$del" -gt 0 ]; then
+        [ "$ins" -gt 0 ] && stat="+${ins}"
+        if [ "$del" -gt 0 ]; then
+            [ -n "$stat" ] && stat="${stat} "
+            stat="${stat}-${del}"
+        fi
+    fi
+    local right=""
+    [ -n "$stat" ] && right="${stat}  "
+    right="${right}${author}"
+    local right_len=${#right}
+
+    # Available width: 6 indent + 3 format spaces + 1 right margin = 10
+    local avail=$(( TERM_W - 10 ))
+    local left="${hash} ${message}"
+    local max_left=$(( avail - right_len - 3 ))
+
+    # Truncate message if needed
+    if (( ${#left} > max_left )) && (( max_left > 10 )); then
+        left="${left:0:$(( max_left - 1 ))}.."
+    fi
+
+    local pad=$(( avail - ${#left} - right_len ))
+    (( pad < 2 )) && pad=2
     local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
-    printf "    ${SAPPHIRE}%s${RESET} ${SURFACE}%s${RESET} %s%s${RESET}\n" "$name" "$dots" "$color" "$status"
+
+    # Colorize: stat then author
+    local colored_right=""
+    if [ -n "$stat" ]; then
+        local cs=""
+        [ "$ins" -gt 0 ] && cs="${DIFF_ADD}+${ins}${RESET}"
+        if [ "$del" -gt 0 ]; then
+            [ -n "$cs" ] && cs="${cs} "
+            cs="${cs}${DIFF_DEL}-${del}${RESET}"
+        fi
+        colored_right="${cs}  "
+    fi
+    colored_right="${colored_right}${OVERLAY}${author}${RESET}"
+
+    printf "      ${HASH_COLOR}%s${RESET} %s ${SURFACE}%s${RESET} %s\n" \
+        "$hash" "${left#* }" "$dots" "$colored_right"
 }
 
-# Checks a repo: fetch, compare branches, print row + commits
+# Print commits for a range, with author filtering and stat
+print_commits() {
+    local local_path="$1" range="$2" with_stat="${3:-false}"
+    local author_flag=""
+    [ -n "$AUTHOR_FILTER" ] && author_flag="--author=$AUTHOR_FILTER"
+
+    local output=""
+    if [ "$with_stat" = "true" ]; then
+        output=$(git -C "$local_path" log $author_flag \
+            --format="COMMIT|%h|%aN|%s" --shortstat "$range" 2>/dev/null) || true
+    else
+        output=$(git -C "$local_path" log $author_flag \
+            --format="COMMIT|%h|%aN|%s" "$range" 2>/dev/null) || true
+    fi
+
+    [ -z "$output" ] && return
+
+    local hash="" author="" message="" pending=false
+    while IFS= read -r line; do
+        if [[ "$line" == COMMIT\|* ]]; then
+            # Print previous pending commit (had no stat line)
+            $pending && print_commit_line "$hash" "$author" "$message" 0 0
+            IFS='|' read -r _ hash author message <<< "$line"
+            pending=true
+        elif [[ "$line" =~ "changed" ]] && $pending; then
+            local ins=0 del=0
+            ins=$(echo "$line" | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+') || ins=0
+            del=$(echo "$line" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+') || del=0
+            [ -z "$ins" ] && ins=0
+            [ -z "$del" ] && del=0
+            print_commit_line "$hash" "$author" "$message" "$ins" "$del"
+            pending=false
+        fi
+    done <<< "$output"
+    # Print last pending commit
+    ! $pending || print_commit_line "$hash" "$author" "$message" 0 0
+}
+
+# Checks a repo: compare branches, print row + commits
 check_repo() {
-    local name="$1" local_path="$2"
+    local name="$1" local_path="$2" skip_fetch="${3:-false}"
     local display="~${local_path#$HOME}"
 
-    git -C "$local_path" fetch --quiet 2>/dev/null || true
+    if ! $skip_fetch; then
+        git -C "$local_path" fetch --quiet 2>/dev/null || true
+    fi
 
     local behind=0 ahead=0
     # Collect branch pairs for commit listing
@@ -359,15 +501,21 @@ check_repo() {
         fi
     fi
 
+    # Determine if repo has divergence
+    local has_changes=false
     if [ -n "$status_parts" ]; then
         local color="$PEACH"
         (( dirty > 0 )) && color="$YELLOW"
-        print_row "$name" "$status_parts" "$color"
+        print_row "$name" "$status_parts" "$color" "$display"
+        has_changes=true
     else
-        print_row "$name" "synced" "$GREEN"
+        print_row "$name" "synced" "$GREEN" "$display"
         synced=$(( synced + 1 ))
     fi
-    echo "      ${OVERLAY}${display}${RESET}"
+
+    # Show stat if repo has changes or -s flag is set
+    local show_stat_here=false
+    { $has_changes || $SHOW_STAT; } && show_stat_here=true
 
     # Print commits
     if [ -n "$branches_info" ]; then
@@ -375,26 +523,25 @@ check_repo() {
             local br="${info%%|*}"; local rest="${info#*|}"
             local up="${rest%%|*}"; rest="${rest#*|}"
             local b="${rest%%|*}"; local a="${rest#*|}"
-            if [ "$b" -gt 0 ]; then
-                git -C "$local_path" log "${br}..${up}" \
-                    --format="      ${OVERLAY}%h${RESET} %s" 2>/dev/null || true
-            fi
-            if [ "$a" -gt 0 ]; then
-                git -C "$local_path" log "${up}..${br}" \
-                    --format="      ${OVERLAY}%h${RESET} %s" 2>/dev/null || true
-            fi
+            [ "$b" -gt 0 ] && print_commits "$local_path" "${br}..${up}" "$show_stat_here"
+            [ "$a" -gt 0 ] && print_commits "$local_path" "${up}..${br}" "$show_stat_here"
         done
     else
-        git -C "$local_path" log -1 \
-            --format="      ${OVERLAY}%h %s${RESET}" 2>/dev/null || true
+        print_commits "$local_path" "-1" "$show_stat_here"
     fi
 }
 
 # Track which repo paths have been shown
 checked_paths=""
 
-# --- Pass 1: repos under current directory ---
+# Disable set -e for repo processing (git commands may fail on edge-case repos)
+set +e
+
+# --- Pass 1: repos under REPO_DIR (with parallel fetch) ---
 elsewhere_repos=()
+pass1_names=()
+pass1_paths=()
+fetch_pids=()
 
 for name in "${active_repos[@]}"; do
     local_path=$(find "$REPO_DIR" -maxdepth 3 -type d -iname "$name" \
@@ -405,25 +552,73 @@ for name in "${active_repos[@]}"; do
         continue
     fi
 
-    check_repo "$name" "$local_path"
-    checked_paths="${checked_paths}|${local_path}"
+    pass1_names+=("$name")
+    pass1_paths+=("$local_path")
+    git -C "$local_path" fetch --quiet 2>/dev/null &
+    fetch_pids+=($!)
+done
+
+# Wait for all pass 1 fetches
+for pid in "${fetch_pids[@]}"; do
+    wait "$pid" 2>/dev/null
+done
+
+# Display pass 1 repos (fetch already done)
+for i in "${!pass1_names[@]}"; do
+    check_repo "${pass1_names[$i]}" "${pass1_paths[$i]}" true
+    checked_paths="${checked_paths}|${pass1_paths[$i]}"
 done
 
 # --- Pass 2: repos found elsewhere on the machine ---
 if [ ${#elsewhere_repos[@]} -gt 0 ]; then
-    found_elsewhere=false
+    # One scan of HOME for all git repos (instead of one find per repo)
+    home_git_dirs=$(find "$HOME" -maxdepth 4 -type d \
+        -not -path "*/Library/*" \
+        -not -path "*/.Trash/*" \
+        -not -path "*/node_modules/*" \
+        -not -path "*/.cache/*" \
+        -name ".git" 2>/dev/null)
+
+    # Start parallel fetches for found elsewhere repos
+    elsewhere_found_names=()
+    elsewhere_found_paths=()
+    elsewhere_fetch_pids=()
 
     for name in "${elsewhere_repos[@]}"; do
-        local_path=$(find "$HOME" -maxdepth 4 -type d \
-            -not -path "*/Library/*" \
-            -not -path "*/.Trash/*" \
-            -not -path "*/node_modules/*" \
-            -not -path "*/.cache/*" \
-            -iname "$name" \
-            -exec test -d "{}/.git" \; -print -quit 2>/dev/null || true)
+        local_path=""
+        lc_name=$(echo "$name" | tr '[:upper:]' '[:lower:]')
+        while IFS= read -r gitdir; do
+            [ -z "$gitdir" ] && continue
+            dir="${gitdir%/.git}"
+            bname=$(basename "$dir")
+            if [ "$(echo "$bname" | tr '[:upper:]' '[:lower:]')" = "$lc_name" ]; then
+                local_path="$dir"
+                break
+            fi
+        done <<< "$home_git_dirs"
 
         # Skip if already shown in pass 1
         case "$checked_paths" in *"|${local_path}"*) continue ;; esac
+
+        elsewhere_found_names+=("$name")
+        elsewhere_found_paths+=("${local_path:-}")
+
+        if [ -n "$local_path" ]; then
+            git -C "$local_path" fetch --quiet 2>/dev/null &
+            elsewhere_fetch_pids+=($!)
+        fi
+    done
+
+    # Wait for all elsewhere fetches
+    for pid in "${elsewhere_fetch_pids[@]}"; do
+        wait "$pid" 2>/dev/null
+    done
+
+    # Display elsewhere repos
+    found_elsewhere=false
+    for i in "${!elsewhere_found_names[@]}"; do
+        name="${elsewhere_found_names[$i]}"
+        local_path="${elsewhere_found_paths[$i]}"
 
         if ! $found_elsewhere; then
             echo ""
@@ -433,14 +628,13 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
         fi
 
         if [ -n "$local_path" ]; then
-            check_repo "$name" "$local_path"
+            check_repo "$name" "$local_path" true
             checked_paths="${checked_paths}|${local_path}"
         else
-            local nc_status="not cloned"
+            nc_status="not cloned"
             if $SHOW_PRS; then
-                local pc
-        pc=$(get_pr_count "$name")
-        pc="${pc:-0}"
+                pc=$(get_pr_count "$name")
+                pc="${pc:-0}"
                 if (( pc > 0 )); then
                     nc_status="not cloned, ${pc} PR"
                     (( pc > 1 )) && nc_status="${nc_status}s"
@@ -495,13 +689,12 @@ while IFS= read -r gitdir; do
     fi
 
     if [ "$local_ahead" -gt 0 ] && [ "$changed" -gt 0 ]; then
-        print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW"
+        print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW" "$display"
     elif [ "$local_ahead" -gt 0 ]; then
-        print_row "$name" "${local_ahead} ahead" "$PEACH"
+        print_row "$name" "${local_ahead} ahead" "$PEACH" "$display"
     else
-        print_row "$name" "${changed} uncommitted" "$YELLOW"
+        print_row "$name" "${changed} uncommitted" "$YELLOW" "$display"
     fi
-    echo "      ${OVERLAY}${display}${RESET}"
     dirty_count=$(( dirty_count + 1 ))
 
 done < <(find "$REPO_DIR" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort)
