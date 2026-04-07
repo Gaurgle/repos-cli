@@ -12,7 +12,7 @@ See what changed across your repos since you last sat down.
 
 If you work on multiple projects and switch between machines — a work laptop and a home setup, say — you know the feeling. You sit down, and you're not sure which repos have new commits you need to pull, which ones you forgot to push last night, or where you left uncommitted work.
 
-repoz gives you that overview in one command. It checks GitHub, compares with what you have locally, and shows you the status of everything that's been active recently — commits behind, ahead, uncommitted changes, and untracked files. That's it. No setup, no config files, no background processes. Just a bash script, `gh`, and `jq`.
+**repoz** gives you that overview in one command. It checks GitHub, compares with what you have locally, and shows you the status of everything that's been active recently — commits behind, ahead, uncommitted changes, and untracked files. That's it. No setup, no config files, no background processes. Just a bash script, `gh`, and `jq`.
 
 It's fast because it doesn't check every repo you own — it asks GitHub which repos were recently pushed to, then fetches them in parallel.
 
@@ -31,7 +31,7 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
 
 **1. Authenticate with GitHub**
 
-repoz uses the GitHub CLI to talk to GitHub. If you haven't set it up yet:
+**repoz** uses the GitHub CLI to talk to GitHub. If you haven't set it up yet:
 
 ```sh
 gh auth login
@@ -101,7 +101,7 @@ repoz -d                                 # local dirty repos only
 repoz -t                                 # today
 ```
 
-By default, repoz searches for local clones under the current directory. Set `REPO_CHECK_DIR` to search somewhere specific:
+By default, **repoz** searches for local clones under the current directory. Set `REPO_CHECK_DIR` to search somewhere specific:
 
 ```sh
 REPO_CHECK_DIR=~/code repoz
@@ -181,7 +181,7 @@ The three time slots are derived from `WORK_START` and `WORK_END`:
 
 ## SSH setup
 
-repoz runs `git fetch` on active repos. If your remotes use SSH (`git@github.com:...`), you'll want your key loaded so you don't get passphrase prompts on every fetch.
+**repoz** runs `git fetch` on active repos. If your remotes use SSH (`git@github.com:...`), you'll want your key loaded so you don't get passphrase prompts on every fetch.
 
 **macOS** — store your passphrase in the Keychain once:
 
