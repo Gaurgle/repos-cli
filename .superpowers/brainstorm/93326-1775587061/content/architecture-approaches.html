@@ -1,0 +1,95 @@
+<h2>Architecture: TUI Layout Approach</h2>
+<p class="subtitle">How should the dashboard organize information spatially?</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family: monospace; font-size: 11px; background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 6px; line-height: 1.5;">
+        <div style="color: #b4bafe; border-bottom: 1px solid #454b5a; padding-bottom: 4px; margin-bottom: 8px;">
+          epoz — since 2026-04-07 &nbsp; Work (09-18) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [t]imer [p]ull [g]roups [?]help
+        </div>
+        <div style="display: flex; gap: 0;">
+          <div style="width: 35%; border-right: 1px solid #454b5a; padding-right: 12px;">
+            <div style="color: #7f849c; font-size: 10px; margin-bottom: 6px;">REPOS</div>
+            <div style="color: #74c7ec; background: #313244; padding: 2px 4px;">▸ noiz</div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; repoz</div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; epoz</div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; dotfiles</div>
+            <div style="color: #7f849c; font-size: 10px; margin: 8px 0 4px;">── also active ──</div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; work-api</div>
+            <div style="color: #7f849c; font-size: 10px; margin: 8px 0 4px;">── local changes ──</div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; scripts</div>
+          </div>
+          <div style="width: 65%; padding-left: 12px;">
+            <div style="color: #7f849c; font-size: 10px; margin-bottom: 6px;">DETAIL — noiz</div>
+            <div><span style="color: #a6e3a1;">● synced</span> &nbsp; <span style="color: #7f849c;">~/repos/noiz</span></div>
+            <div style="color: #7f849c; font-size: 10px; margin: 8px 0 4px;">branches</div>
+            <div>&nbsp; main <span style="color: #a6e3a1;">✓</span></div>
+            <div>&nbsp; feat/timer <span style="color: #fa9e64;">2 ahead</span></div>
+            <div style="color: #7f849c; font-size: 10px; margin: 8px 0 4px;">recent commits</div>
+            <div>&nbsp; <span style="color: #8c9bb4;">a1b2c3d</span> feat: timer toggle <span style="color: #86c286;">+18</span> <span style="color: #d28c8c;">-3</span></div>
+            <div>&nbsp; <span style="color: #8c9bb4;">e4f5g6h</span> fix: click tone <span style="color: #86c286;">+4</span> <span style="color: #d28c8c;">-2</span></div>
+            <div style="color: #7f849c; font-size: 10px; margin: 8px 0 4px;">actions</div>
+            <div>&nbsp; <span style="color: #a6e3a1;">✓</span> CI passed &nbsp; <span style="color: #cba6f7;">1 PR open</span></div>
+          </div>
+        </div>
+        <div style="border-top: 1px solid #454b5a; padding-top: 4px; margin-top: 8px; color: #7f849c; font-size: 10px;">
+          2 behind · 1 ahead · 1 uncommitted · 3 synced &nbsp;&nbsp;&nbsp; [enter] lazygit &nbsp; [p] pull &nbsp; [b] branches &nbsp; [q] quit
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: List + Detail Panel</h3>
+      <p>Left panel lists repos (like repoz output). Right panel shows detail for the selected repo — branches, commits, CI, PRs. Navigate with j/k, drill down with enter.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Familiar pattern (lazygit, k9s)</li><li>Clean separation of overview vs detail</li><li>Scales well with many repos</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Less info visible at a glance</li><li>Need to navigate to see each repo</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family: monospace; font-size: 11px; background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 6px; line-height: 1.5;">
+        <div style="color: #b4bafe; border-bottom: 1px solid #454b5a; padding-bottom: 4px; margin-bottom: 8px;">
+          epoz — since 2026-04-07 &nbsp; Work (09-18) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [t]imer [p]ull [g]roups [?]help
+        </div>
+        <div>
+          <div style="margin-bottom: 10px;">
+            <div><span style="color: #74c7ec; background: #313244; padding: 1px 4px;">noiz</span> <span style="color: #7f849c;">~/repos/noiz</span> <span style="color: #454b5a;">·····</span> <span style="color: #a6e3a1;">synced</span> &nbsp; <span style="color: #a6e3a1;">✓ CI</span> &nbsp; <span style="color: #cba6f7;">1 PR</span></div>
+            <div style="padding-left: 16px;">
+              <span style="color: #8c9bb4;">a1b2c3d</span> feat: timer toggle <span style="color: #86c286;">+18</span> <span style="color: #d28c8c;">-3</span> &nbsp;
+              <span style="color: #8c9bb4;">e4f5g6h</span> fix: click tone <span style="color: #86c286;">+4</span> <span style="color: #d28c8c;">-2</span>
+            </div>
+            <div style="padding-left: 16px; color: #7f849c; font-size: 10px;">branches: main ✓ · feat/timer <span style="color: #fa9e64;">2 ahead</span></div>
+          </div>
+          <div style="margin-bottom: 10px;">
+            <div><span style="color: #74c7ec;">repoz</span> <span style="color: #7f849c;">~/repos/repoz</span> <span style="color: #454b5a;">···</span> <span style="color: #fa9e64;">3 behind</span> &nbsp; <span style="color: #a6e3a1;">✓ CI</span></div>
+            <div style="padding-left: 16px;">
+              <span style="color: #8c9bb4;">b2c3d4e</span> fix: date parsing <span style="color: #86c286;">+8</span> <span style="color: #d28c8c;">-4</span> &nbsp;
+              <span style="color: #8c9bb4;">c3d4e5f</span> feat: --before flag <span style="color: #86c286;">+32</span> <span style="color: #d28c8c;">-1</span>
+            </div>
+          </div>
+          <div style="margin-bottom: 10px;">
+            <div><span style="color: #74c7ec;">dotfiles</span> <span style="color: #7f849c;">~/repos/dotfiles</span> <span style="color: #454b5a;">·</span> <span style="color: #f9e2af;">2 uncommitted</span></div>
+          </div>
+          <div style="color: #7f849c; font-size: 10px; margin: 6px 0 4px;">── also active ──</div>
+          <div>
+            <div><span style="color: #74c7ec;">work-api</span> <span style="color: #7f849c;">~/work/api</span> <span style="color: #454b5a;">·····</span> <span style="color: #fa9e64;">5 behind</span> &nbsp; <span style="color: #d28c8c;">✗ CI</span> &nbsp; <span style="color: #cba6f7;">3 PRs</span></div>
+          </div>
+        </div>
+        <div style="border-top: 1px solid #454b5a; padding-top: 4px; margin-top: 8px; color: #7f849c; font-size: 10px;">
+          8 behind · 2 ahead · 2 uncommitted · 1 synced &nbsp;&nbsp;&nbsp; [enter] lazygit &nbsp; [p] pull &nbsp; [b] branches &nbsp; [q] quit
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Expanded List (repoz-style)</h3>
+      <p>Single scrollable view — each repo shows inline detail (commits, branches, CI). Basically repoz output but interactive. Select repos, act on them directly.</p>
+      <div class="pros-cons">
+        <div class="pros"><h4>Pros</h4><ul><li>Everything visible at once</li><li>Closest to current repoz feel</li><li>No navigation needed for overview</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Gets cramped with many repos</li><li>Less room for detailed info per repo</li><li>Harder to add complex features</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>

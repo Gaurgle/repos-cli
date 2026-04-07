@@ -1,0 +1,126 @@
+<h2>Overview Options for Layout A</h2>
+<p class="subtitle">How to see more repos at a glance while keeping the detail panel?</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family: monospace; font-size: 11px; background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 6px; line-height: 1.5;">
+        <div style="color: #b4bafe; border-bottom: 1px solid #454b5a; padding-bottom: 4px; margin-bottom: 8px;">
+          epoz — since 2026-04-07 &nbsp; Work (09-18) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [v] toggle view
+        </div>
+        <div style="color: #7f849c; font-size: 10px; margin-bottom: 6px;">COMPACT VIEW &nbsp; (press v to switch to detail view)</div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px;">
+          <div><span style="color: #74c7ec;">noiz</span> <span style="color: #454b5a;">···</span> <span style="color: #a6e3a1;">synced</span> <span style="color: #a6e3a1;">✓</span> <span style="color: #cba6f7;">1PR</span></div>
+          <div><span style="color: #74c7ec;">work-api</span> <span style="color: #454b5a;">·</span> <span style="color: #fa9e64;">5↓</span> <span style="color: #d28c8c;">✗</span> <span style="color: #cba6f7;">3PR</span></div>
+          <div><span style="color: #74c7ec; background: #313244; padding: 0 3px;">repoz</span> <span style="color: #454b5a;">··</span> <span style="color: #fa9e64;">3↓</span> <span style="color: #a6e3a1;">✓</span></div>
+          <div><span style="color: #74c7ec;">scripts</span> <span style="color: #454b5a;">··</span> <span style="color: #f9e2af;">2!</span></div>
+          <div><span style="color: #74c7ec;">epoz</span> <span style="color: #454b5a;">···</span> <span style="color: #a6e3a1;">synced</span></div>
+          <div><span style="color: #74c7ec;">blog</span> <span style="color: #454b5a;">····</span> <span style="color: #a6e3a1;">synced</span></div>
+          <div><span style="color: #74c7ec;">dotfiles</span> <span style="color: #454b5a;">·</span> <span style="color: #f9e2af;">2!</span></div>
+          <div><span style="color: #74c7ec;">infra</span> <span style="color: #454b5a;">···</span> <span style="color: #fa9e64;">1↓</span> <span style="color: #a6e3a1;">✓</span></div>
+          <div><span style="color: #74c7ec;">cli-tools</span> <span style="color: #454b5a;">·</span> <span style="color: #a6e3a1;">synced</span></div>
+          <div><span style="color: #74c7ec;">k8s-conf</span> <span style="color: #454b5a;">·</span> <span style="color: #a6e3a1;">synced</span></div>
+        </div>
+        <div style="border-top: 1px solid #454b5a; padding-top: 4px; margin-top: 8px; color: #7f849c; font-size: 10px;">
+          9 behind · 1 ahead · 4 uncommitted · 5 synced &nbsp;&nbsp;&nbsp; 10 repos
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: Toggle View (v key)</h3>
+      <p>Press <code>v</code> to switch between <strong>detail view</strong> (list + panel) and <strong>compact view</strong> (dense grid, all repos visible). Compact uses shorthand: ↓ behind, ↑ ahead, ! uncommitted, ✓/✗ CI.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family: monospace; font-size: 11px; background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 6px; line-height: 1.5;">
+        <div style="color: #b4bafe; border-bottom: 1px solid #454b5a; padding-bottom: 4px; margin-bottom: 8px;">
+          epoz — since 2026-04-07 &nbsp; Work (09-18) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [tab] cycle focus
+        </div>
+        <div style="display: flex; gap: 0;">
+          <div style="width: 35%; border-right: 1px solid #454b5a; padding-right: 12px;">
+            <div style="color: #7f849c; font-size: 10px; margin-bottom: 6px;">REPOS</div>
+            <div style="color: #74c7ec; background: #313244; padding: 2px 4px;">▸ noiz <span style="color: #a6e3a1; float: right;">synced</span></div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; repoz <span style="color: #fa9e64; float: right;">3↓</span></div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; epoz <span style="color: #a6e3a1; float: right;">synced</span></div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; dotfiles <span style="color: #f9e2af; float: right;">2!</span></div>
+          </div>
+          <div style="width: 65%; padding-left: 12px;">
+            <div style="color: #7f849c; font-size: 10px; margin-bottom: 6px;">DETAIL — noiz</div>
+            <div><span style="color: #a6e3a1;">● synced</span> &nbsp; <span style="color: #7f849c;">~/repos/noiz</span></div>
+            <div style="color: #7f849c; font-size: 10px; margin: 6px 0 3px;">branches</div>
+            <div>&nbsp; main <span style="color: #a6e3a1;">✓</span></div>
+            <div>&nbsp; feat/timer <span style="color: #fa9e64;">2 ahead</span></div>
+          </div>
+        </div>
+        <div style="border-top: 1px solid #454b5a; padding-top: 3px; margin-top: 6px;"></div>
+        <div style="color: #7f849c; font-size: 10px; margin-bottom: 4px;">SUMMARY</div>
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; text-align: center;">
+          <div style="background: #313244; padding: 4px; border-radius: 3px;"><span style="color: #fa9e64; font-size: 14px;">9</span><br><span style="color: #7f849c; font-size: 9px;">behind</span></div>
+          <div style="background: #313244; padding: 4px; border-radius: 3px;"><span style="color: #a6e3a1; font-size: 14px;">2</span><br><span style="color: #7f849c; font-size: 9px;">ahead</span></div>
+          <div style="background: #313244; padding: 4px; border-radius: 3px;"><span style="color: #f9e2af; font-size: 14px;">4</span><br><span style="color: #7f849c; font-size: 9px;">dirty</span></div>
+          <div style="background: #313244; padding: 4px; border-radius: 3px;"><span style="color: #a6e3a1; font-size: 14px;">5</span><br><span style="color: #7f849c; font-size: 9px;">synced</span></div>
+        </div>
+        <div style="border-top: 1px solid #454b5a; padding-top: 4px; margin-top: 8px; color: #7f849c; font-size: 10px;">
+          [tab] focus: repos ↔ detail ↔ summary &nbsp;&nbsp;&nbsp; [enter] lazygit &nbsp; [q] quit
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Three-Pane with Summary Bar</h3>
+      <p>Keep list + detail as-is, add a <strong>summary bar</strong> at the bottom with aggregate stats. The repo list already shows inline status badges (synced, 3↓, 2!) so you get the overview without leaving detail mode.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="font-family: monospace; font-size: 11px; background: #1e1e2e; color: #cdd6f4; padding: 16px; border-radius: 6px; line-height: 1.5;">
+        <div style="color: #b4bafe; border-bottom: 1px solid #454b5a; padding-bottom: 4px; margin-bottom: 8px;">
+          epoz — since 2026-04-07 &nbsp; Work (09-18) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; [v] view &nbsp; [tab] focus
+        </div>
+        <div style="display: flex; gap: 0;">
+          <div style="width: 35%; border-right: 1px solid #454b5a; padding-right: 12px;">
+            <div style="color: #7f849c; font-size: 10px; margin-bottom: 6px;">REPOS</div>
+            <div style="color: #74c7ec; background: #313244; padding: 2px 4px;">▸ noiz <span style="color: #a6e3a1; float: right;">synced ✓</span></div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; repoz <span style="color: #fa9e64; float: right;">3↓ ✓</span></div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; epoz <span style="color: #a6e3a1; float: right;">synced</span></div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; dotfiles <span style="color: #f9e2af; float: right;">2!</span></div>
+            <div style="color: #7f849c; font-size: 10px; margin: 6px 0 3px;">── also active ──</div>
+            <div style="color: #74c7ec; padding: 2px 4px;">&nbsp; work-api <span style="color: #fa9e64; float: right;">5↓ <span style="color: #d28c8c;">✗</span></span></div>
+          </div>
+          <div style="width: 65%; padding-left: 12px;">
+            <div style="color: #7f849c; font-size: 10px; margin-bottom: 6px;">DETAIL — noiz</div>
+            <div><span style="color: #a6e3a1;">● synced</span> &nbsp; <span style="color: #7f849c;">~/repos/noiz</span></div>
+            <div style="color: #7f849c; font-size: 10px; margin: 6px 0 3px;">branches</div>
+            <div>&nbsp; main <span style="color: #a6e3a1;">✓</span></div>
+            <div>&nbsp; feat/timer <span style="color: #fa9e64;">2 ahead</span></div>
+            <div style="color: #7f849c; font-size: 10px; margin: 6px 0 3px;">recent commits</div>
+            <div>&nbsp; <span style="color: #8c9bb4;">a1b2c3d</span> feat: timer toggle <span style="color: #86c286;">+18</span> <span style="color: #d28c8c;">-3</span></div>
+            <div>&nbsp; <span style="color: #8c9bb4;">e4f5g6h</span> fix: click tone <span style="color: #86c286;">+4</span> <span style="color: #d28c8c;">-2</span></div>
+          </div>
+        </div>
+        <div style="border-top: 1px solid #454b5a; padding-top: 4px; margin-top: 8px; color: #7f849c; font-size: 10px;">
+          <span style="color: #fa9e64;">9↓</span> · <span style="color: #a6e3a1;">2↑</span> · <span style="color: #f9e2af;">4!</span> · <span style="color: #a6e3a1;">5 synced</span> &nbsp;&nbsp; [v] compact view &nbsp; [enter] lazygit &nbsp; [p] pull &nbsp; [q] quit
+        </div>
+        <div style="color: #7f849c; font-size: 10px; margin-top: 12px; border: 1px dashed #454b5a; padding: 8px; border-radius: 4px;">
+          ↕ press <strong style="color: #cdd6f4;">v</strong> to switch to:
+        </div>
+        <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px;">
+          <div><span style="color: #74c7ec;">noiz</span> <span style="color: #454b5a;">···</span> <span style="color: #a6e3a1;">synced</span> <span style="color: #a6e3a1;">✓</span> <span style="color: #cba6f7;">1PR</span></div>
+          <div><span style="color: #74c7ec;">work-api</span> <span style="color: #454b5a;">·</span> <span style="color: #fa9e64;">5↓</span> <span style="color: #d28c8c;">✗</span> <span style="color: #cba6f7;">3PR</span></div>
+          <div><span style="color: #74c7ec;">repoz</span> <span style="color: #454b5a;">··</span> <span style="color: #fa9e64;">3↓</span> <span style="color: #a6e3a1;">✓</span></div>
+          <div><span style="color: #74c7ec;">scripts</span> <span style="color: #454b5a;">··</span> <span style="color: #f9e2af;">2!</span></div>
+          <div><span style="color: #74c7ec;">epoz</span> <span style="color: #454b5a;">···</span> <span style="color: #a6e3a1;">synced</span></div>
+          <div><span style="color: #74c7ec;">blog</span> <span style="color: #454b5a;">····</span> <span style="color: #a6e3a1;">synced</span></div>
+          <div><span style="color: #74c7ec;">dotfiles</span> <span style="color: #454b5a;">·</span> <span style="color: #f9e2af;">2!</span></div>
+          <div><span style="color: #74c7ec;">infra</span> <span style="color: #454b5a;">···</span> <span style="color: #fa9e64;">1↓</span> <span style="color: #a6e3a1;">✓</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C: Both — Toggle + Inline Badges</h3>
+      <p>Combine the best of both: the repo list already shows <strong>inline status badges</strong> (so you scan at a glance without leaving detail mode), plus <code>v</code> toggles to a <strong>full compact grid</strong> when you want the bird's eye view. Summary stats always in the footer.</p>
+    </div>
+  </div>
+</div>

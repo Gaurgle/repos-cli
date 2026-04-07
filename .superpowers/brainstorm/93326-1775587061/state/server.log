@@ -1,0 +1,5 @@
+{"type":"server-started","port":49474,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:49474","screen_dir":"/Users/at-a/repos/repoz/.superpowers/brainstorm/93326-1775587061/content","state_dir":"/Users/at-a/repos/repoz/.superpowers/brainstorm/93326-1775587061/state"}
+{"type":"screen-added","file":"/Users/at-a/repos/repoz/.superpowers/brainstorm/93326-1775587061/content/architecture-approaches.html"}
+{"type":"screen-added","file":"/Users/at-a/repos/repoz/.superpowers/brainstorm/93326-1775587061/content/overview-modes.html"}
+{"type":"screen-added","file":"/Users/at-a/repos/repoz/.superpowers/brainstorm/93326-1775587061/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}
