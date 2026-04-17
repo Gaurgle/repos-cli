@@ -12,4 +12,4 @@
   - [ ] look at etstimated time here too
 - [ ] should be able to move todoz between projects
 - [ ] should be able to hide completed tasks
-- [ ] add to calendar? 
+- [ ] add to calendar?
