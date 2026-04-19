@@ -8,6 +8,7 @@ CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/repoz/config"
 WORK_START=9
 WORK_END=18
 REPO_LIMIT=50
+EXTRA_DIRS=()
 TERM_W=$(stty size </dev/tty 2>/dev/null | awk '{print $2}') || true
 : "${TERM_W:=${COLUMNS:-0}}"
 (( TERM_W < 40 )) && TERM_W=$(tput cols 2>/dev/null || echo 80)
@@ -22,9 +23,16 @@ if [ -f "$CONFIG_FILE" ]; then
             WORK_END)    WORK_END=$((10#$val)) ;;
             REPO_LIMIT)  REPO_LIMIT=$((10#$val)) ;;
             REPO_CHECK_DIR) [ -z "${REPO_CHECK_DIR:-}" ] && REPO_DIR="$val" ;;
+            EXTRA_DIRS) IFS=':' read -ra EXTRA_DIRS <<< "$val" ;;
         esac
     done < "$CONFIG_FILE"
 fi
+
+# Build validated scan dirs (REPO_DIR + existing EXTRA_DIRS)
+SCAN_DIRS=("$REPO_DIR")
+for _d in "${EXTRA_DIRS[@]}"; do
+    [ -d "$_d" ] && SCAN_DIRS+=("$_d")
+done
 
 # Catppuccin Mocha palette (printf for bash 3.2 compat)
 PEACH=$(printf '\033[38;2;250;179;135m')    # behind / warning
@@ -71,7 +79,8 @@ Options:
 
 Time slots: Work (09–18), Evening (18–00). Default mode shows activity
 since the previous slot boundary, so you see what changed while away.
-Configure via ~/.config/repoz/config or REPO_CHECK_DIR env var.
+Config: ~/.config/repoz/config (or REPO_CHECK_DIR env var).
+Set EXTRA_DIRS=/path/one:/path/two to scan additional directories.
 EOF
 }
 
@@ -211,7 +220,7 @@ if [ "$MODE" = "dirty" ]; then
         fi
         dirty_count=$(( dirty_count + 1 ))
 
-    done < <(find "$REPO_DIR" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort)
+    done < <(find "${SCAN_DIRS[@]}" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort -u)
 
     echo ""
     echo "  ${DIV}"
@@ -250,10 +259,17 @@ else yesterday=$(date -d yesterday +%Y-%m-%d); fi
 
 case "$MODE" in
     auto)
-        hour=$((10#$(date +%H)))
-        if (( hour >= WORK_END )); then
-            cutoff="${today}T$(printf '%02d' $WORK_START):00:00"
-            header="since ${today}  ${slot_label_work}"
+        # Find the latest date with any push activity from the API data,
+        # rather than assuming "yesterday evening". Handles weekends/days off.
+        latest_date=$(echo "$repos_json" | jq -r '
+          [ .data.viewer.repositories.nodes[]
+            | select(.pushedAt != null)
+            | (.pushedAt | split("T")[0])
+          ] | sort | last // empty
+        ')
+        if [ -n "$latest_date" ]; then
+            cutoff="${latest_date}T00:00:00"
+            header="${latest_date}"
         else
             cutoff="${yesterday}T$(printf '%02d' $WORK_END):00:00"
             header="since ${yesterday}  ${slot_label_evening}"
@@ -336,13 +352,12 @@ get_pr_count() {
 echo ""
 echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— ${header}${RESET}"
 echo "  ${DIV}"
-echo ""
-section_div "To pull"
-echo ""
 
 if [ ${#active_repos[@]} -eq 0 ]; then
-    echo "    ${OVERLAY}Nothing to pull.${RESET}"
+    echo ""
+    echo "  ${GREEN}No GitHub activity.${RESET}"
 fi
+echo ""
 
 # --- Check active repos locally ---
 needs_pull=0
@@ -549,6 +564,15 @@ for name in "${active_repos[@]}"; do
         -exec test -d "{}/.git" \; -print -quit 2>/dev/null)
 
     if [ -z "$local_path" ]; then
+        for _edir in "${EXTRA_DIRS[@]}"; do
+            [ -d "$_edir" ] || continue
+            local_path=$(find "$_edir" -maxdepth 3 -type d -iname "$name" \
+                -exec test -d "{}/.git" \; -print -quit 2>/dev/null)
+            [ -n "$local_path" ] && break
+        done
+    fi
+
+    if [ -z "$local_path" ]; then
         elsewhere_repos+=("$name")
         continue
     fi
@@ -649,10 +673,7 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
 fi
 
 # --- Pass 3: local repos with uncommitted or unpushed changes ---
-echo ""
-section_div "To push"
-echo ""
-push_section_count=0
+has_local_changes=false
 
 count_unpushed() {
     local repo_path="$1" total=0
@@ -685,6 +706,13 @@ while IFS= read -r gitdir; do
 
     [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && continue
 
+    if ! $has_local_changes; then
+        echo ""
+        section_div "local changes"
+        echo ""
+        has_local_changes=true
+    fi
+
     if [ "$local_ahead" -gt 0 ] && [ "$changed" -gt 0 ]; then
         print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW" "$display"
     elif [ "$local_ahead" -gt 0 ]; then
@@ -693,22 +721,8 @@ while IFS= read -r gitdir; do
         print_row "$name" "${changed} uncommitted" "$YELLOW" "$display"
     fi
     dirty_count=$(( dirty_count + 1 ))
-    push_section_count=$(( push_section_count + 1 ))
-    checked_paths="${checked_paths}|${repo_path}"
 
-done < <(
-    {
-        find "$REPO_DIR" -maxdepth 4 -name ".git" -type d 2>/dev/null
-        find "$HOME" -maxdepth 4 -type d \
-            -not -path "*/Library/*" \
-            -not -path "*/.Trash/*" \
-            -not -path "*/node_modules/*" \
-            -not -path "*/.cache/*" \
-            -name ".git" 2>/dev/null
-    } | awk '!seen[tolower($0)]++' | sort
-)
-
-[ $push_section_count -eq 0 ] && echo "    ${OVERLAY}Nothing to push.${RESET}"
+done < <(find "${SCAN_DIRS[@]}" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort -u)
 
 # --- Summary ---
 echo ""
@@ -721,6 +735,5 @@ parts=""
 [ $not_local -gt 0 ]     && parts="${parts}${OVERLAY}${not_local} not local${RESET} ${SURFACE}·${RESET} "
 $SHOW_PRS && [ $open_prs_total -gt 0 ] && parts="${parts}${MAUVE}${open_prs_total} open PRs${RESET} ${SURFACE}·${RESET} "
 parts="${parts% ${SURFACE}·${RESET} }"
-[ -z "$parts" ] && parts="${GREEN}All clear.${RESET}"
 echo "  ${parts}"
 echo ""
