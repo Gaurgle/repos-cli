@@ -560,13 +560,13 @@ pass1_paths=()
 fetch_pids=()
 
 for name in "${active_repos[@]}"; do
-    local_path=$(find "$REPO_DIR" -maxdepth 3 -type d -iname "$name" \
+    local_path=$(find "$REPO_DIR" -maxdepth 3 -type d \( -iname "$name" -o -iname ".$name" \) \
         -exec test -d "{}/.git" \; -print -quit 2>/dev/null)
 
     if [ -z "$local_path" ]; then
         for _edir in "${EXTRA_DIRS[@]}"; do
             [ -d "$_edir" ] || continue
-            local_path=$(find "$_edir" -maxdepth 3 -type d -iname "$name" \
+            local_path=$(find "$_edir" -maxdepth 3 -type d \( -iname "$name" -o -iname ".$name" \) \
                 -exec test -d "{}/.git" \; -print -quit 2>/dev/null)
             [ -n "$local_path" ] && break
         done
@@ -616,7 +616,8 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
             [ -z "$gitdir" ] && continue
             dir="${gitdir%/.git}"
             bname=$(basename "$dir")
-            if [ "$(echo "$bname" | tr '[:upper:]' '[:lower:]')" = "$lc_name" ]; then
+            lc_bname=$(echo "$bname" | tr '[:upper:]' '[:lower:]')
+            if [ "$lc_bname" = "$lc_name" ] || [ "$lc_bname" = ".$lc_name" ]; then
                 local_path="$dir"
                 break
             fi
