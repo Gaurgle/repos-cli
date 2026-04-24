@@ -34,6 +34,11 @@ for _d in "${EXTRA_DIRS[@]}"; do
     [ -d "$_d" ] && SCAN_DIRS+=("$_d")
 done
 
+# If cwd sits inside a git repo, include that repo's toplevel so the
+# dirty-scan pass catches it when running from a subdirectory.
+_toplevel=$(git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null)
+[ -n "$_toplevel" ] && [ "$_toplevel" != "$REPO_DIR" ] && SCAN_DIRS+=("$_toplevel")
+
 # Catppuccin Mocha palette (printf for bash 3.2 compat)
 PEACH=$(printf '\033[38;2;250;179;135m')    # behind / warning
 GREEN=$(printf '\033[38;2;166;227;161m')    # ahead / synced
