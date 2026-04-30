@@ -1,6 +1,6 @@
 # TODO
 
-- [x] add repoz 'yesterday' command, anr more? for easier access to dates, when not want to specify dates
+- [x] add repoz 'yesterday' command, anr more? for easier access to dates, when not want to specify dates #important
 - [x] long notes dont wrap
 - [ ] Im gonna need a sorting function, to view notes by different attributes, like time since created etc
   - [ ] sort by importance tags
