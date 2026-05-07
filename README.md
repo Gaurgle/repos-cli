@@ -10,20 +10,20 @@
 
 See what changed across your repos since you last sat down.
 
-If you work on multiple projects and switch between machines — a work laptop and a home setup, say — you know the feeling. You sit down, and you're not sure which repos have new commits you need to pull, which ones you forgot to push last night, or where you left uncommitted work.
+If you work on multiple projects and switch between machines (a work laptop and a home setup, say), you know the feeling. You sit down, and you're not sure which repos have new commits you need to pull, which ones you forgot to push last night, or where you left uncommitted work.
 
-**repoz** gives you that overview in one command. It checks GitHub, compares with what you have locally, and shows you the status of everything that's been active recently — commits behind, ahead, uncommitted changes, and untracked files. That's it. No setup, no config files, no background processes. Just a bash script, `gh`, and `jq`.
+**repoz** gives you that overview in one command. It checks GitHub, compares with what you have locally, and shows you the status of everything that's been active recently: commits behind, ahead, uncommitted changes, and untracked files. That's it. No setup, no config files, no background processes. Just a bash script, `gh`, and `jq`.
 
-It's fast because it doesn't check every repo you own — it asks GitHub which repos were recently pushed to, then fetches them in parallel.
+It's fast because it doesn't check every repo you own. It asks GitHub which repos were recently pushed to, then fetches them in parallel.
 
 ---
 
 ## Requirements
 
-- **bash** — already on macOS and Linux
-- **git** — already on most systems; if not: [git-scm.com](https://git-scm.com)
-- **gh** — GitHub CLI: [cli.github.com](https://cli.github.com)
-- **jq** — JSON processor: `brew install jq` / `apt install jq` / [jqlang.github.io](https://jqlang.github.io/jq/)
+- **bash**: already on macOS and Linux
+- **git**: already on most systems; if not: [git-scm.com](https://git-scm.com)
+- **gh**: GitHub CLI: [cli.github.com](https://cli.github.com)
+- **jq**: JSON processor: `brew install jq` / `apt install jq` / [jqlang.github.io](https://jqlang.github.io/jq/)
 
 ---
 
@@ -37,7 +37,7 @@ It's fast because it doesn't check every repo you own — it asks GitHub which r
 gh auth login
 ```
 
-Follow the prompts — it'll open a browser and handle everything. You only need to do this once.
+Follow the prompts. It'll open a browser and handle everything. You only need to do this once.
 
 **2. Install repoz**
 
@@ -77,7 +77,7 @@ repoz [options]
 | `--before DATE` | Only show repos pushed before DATE (same relative formats as `--since`) |
 | `-t, --today` | Show all activity since midnight |
 | `-a, --all` | Show all divergence, no time filter |
-| `-d, --dirty` | Local only — show uncommitted/untracked/unpushed (no GitHub) |
+| `-d, --dirty` | Local only, show uncommitted/untracked/unpushed (no GitHub) |
 
 ### Options (combinable)
 
