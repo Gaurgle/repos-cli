@@ -111,11 +111,11 @@ REPO_CHECK_DIR=~/code repoz
 
 ## Output
 
-![repoz — activity overview](demo1.png)
+![repoz activity overview](demo1.png)
 
-![repoz — synced repos](demo2.png)
+![repoz synced repos](demo2.png)
 ```
-repoz — since 2026-03-31  Evening (18-00)
+repoz, since 2026-03-31  Evening (18-00)
 ──────────────────────────────────────────────────────────────────────
 
   frontend-app ~/repos/acme/frontend-app ··················· 2 behind
@@ -167,7 +167,7 @@ REPO_LIMIT=50
 REPO_CHECK_DIR=~/repos
 ```
 
-All settings are optional — without a config file, defaults are used.
+All settings are optional. Without a config file, defaults are used.
 
 The three time slots are derived from `WORK_START` and `WORK_END`:
 
@@ -183,7 +183,7 @@ The three time slots are derived from `WORK_START` and `WORK_END`:
 
 **repoz** runs `git fetch` on active repos. If your remotes use SSH (`git@github.com:...`), you'll want your key loaded so you don't get passphrase prompts on every fetch.
 
-**macOS** — store your passphrase in the Keychain once:
+**macOS**: store your passphrase in the Keychain once:
 
 ```sh
 ssh-add --apple-use-keychain ~/.ssh/id_rsa
@@ -199,7 +199,7 @@ Host *
 
 Your private key stays encrypted on disk; the passphrase is stored in the macOS Keychain and unlocked with your login password.
 
-**Linux** — most distros start an ssh-agent automatically. Run `ssh-add` once per session, or configure your desktop keyring to handle it on login.
+**Linux**: most distros start an ssh-agent automatically. Run `ssh-add` once per session, or configure your desktop keyring to handle it on login.
 
 **Using HTTPS remotes?** `gh auth login` already covers authentication. You can switch a repo to SSH with:
 
