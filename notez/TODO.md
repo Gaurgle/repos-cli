@@ -7,7 +7,7 @@
   - [ ] timestamps on todos?
   - [ ] question if old todos are still active, or can be discarded, after certain amount of time
   - [ ] "estimated time" how long do i estimate task will take.
-- [ ] inputing long text in "new note" or subtask doesnt wrap
+- [x] inputing long text in "new note" or subtask doesnt wrap
 - [ ] should have indicator per project how many pending todos there are
   - [ ] look at etstimated time here too
 - [ ] should be able to move todoz between projects
