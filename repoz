@@ -244,14 +244,38 @@ if $SHOW_PRS; then
 else
     pr_fields=""
 fi
-repos_json=$(gh api graphql -f query="
+# Union two sources so org-native repos aren't missed:
+#   1. viewer.repositories            - personal repos + repos you're a direct collaborator on
+#   2. viewer.organizations[].repositories - every repo in every org you belong to
+# (2) is required because repos created directly in an org, which you reach only via your
+# org-owner/admin role, do NOT surface under viewer.repositories affiliations.
+raw_json=$(gh api graphql -f query="
   { viewer {
     repositories(first: ${REPO_LIMIT}, orderBy: {field: PUSHED_AT, direction: DESC},
       affiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER]) {
-      nodes { name, pushedAt ${pr_fields} }
+      nodes { name nameWithOwner pushedAt ${pr_fields} }
+    }
+    organizations(first: 25) {
+      nodes {
+        repositories(first: ${REPO_LIMIT}, orderBy: {field: PUSHED_AT, direction: DESC}) {
+          nodes { name nameWithOwner pushedAt ${pr_fields} }
+        }
+      }
     }
   }}
 " 2>/dev/null) || { echo "  Failed to reach GitHub. Run: gh auth login"; exit 1; }
+
+# Normalize back into the original shape (.data.viewer.repositories.nodes) so the rest of
+# the script is untouched: merge both sources, drop null-push (empty repos), dedupe by full
+# name, sort newest-pushed first.
+repos_json=$(echo "$raw_json" | jq '
+  ( [ .data.viewer.repositories.nodes[]? ]
+    + [ .data.viewer.organizations.nodes[]?.repositories.nodes[]? ] )
+  | map(select(.pushedAt != null))
+  | unique_by(.nameWithOwner)
+  | sort_by(.pushedAt) | reverse
+  | { data: { viewer: { repositories: { nodes: . } } } }
+')
 
 # --- Determine cutoff and header based on mode ---
 active_repos=()
