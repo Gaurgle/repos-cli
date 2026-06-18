@@ -51,6 +51,7 @@ DIFF_ADD=$(printf '\033[38;2;134;194;134m') # diff +N (mellow green)
 DIFF_DEL=$(printf '\033[38;2;210;140;140m') # diff -N (mellow red)
 OVERLAY=$(printf '\033[38;2;127;132;156m')  # paths, subtle text
 SURFACE=$(printf '\033[38;2;69;71;90m')     # dots, dividers
+RED=$(printf '\033[38;2;243;139;168m')      # not cloned / alert
 BOLD=$(printf '\033[1m')
 RESET=$(printf '\033[0m')
 
@@ -74,6 +75,8 @@ Modes (pick one):
   -t, --today     Show all activity since midnight
   -a, --all       Show all divergence (no time filter)
   -d, --dirty     Local only — show uncommitted/untracked/unpushed (no GitHub)
+  /owner/repo     Target one repo, show only its status (read-only). A single
+                  segment (/repo) resolves against your GitHub user.
 
 Options:
   --author NAME   Filter displayed commits by author (partial match)
@@ -96,6 +99,7 @@ BEFORE_ARG=""
 AUTHOR_FILTER=""
 SHOW_PRS=false
 SHOW_STAT=false
+TARGET_REPO=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -108,6 +112,7 @@ while [ $# -gt 0 ]; do
         -s|--stat)   SHOW_STAT=true; shift ;;
         -p|--prs)    SHOW_PRS=true; shift ;;
         -h|--help) usage; exit 0 ;;
+        /*) TARGET_REPO="$1"; shift ;;
         *) echo "Unknown: $1"; usage; exit 1 ;;
     esac
 done
@@ -233,6 +238,66 @@ if [ "$MODE" = "dirty" ]; then
         echo "  ${GREEN}All clean.${RESET}"
     else
         echo "  ${YELLOW}${dirty_count} dirty${RESET}"
+    fi
+    echo ""
+    exit 0
+fi
+
+# --- Targeted single-repo mode: 'repoz /owner/repo' or 'repoz /repo' ---
+# A leading '/' means "just this one repo". Two segments are owner/repo as given;
+# a single segment resolves against the authenticated GitHub user. Read-only: it
+# reports status, and flags 'not cloned' in the alert color if it's not on disk.
+if [ -n "$TARGET_REPO" ]; then
+    tr_spec="${TARGET_REPO#/}"
+    if [[ "$tr_spec" == */* ]]; then
+        t_owner="${tr_spec%%/*}"
+        t_name="${tr_spec##*/}"
+    else
+        t_owner=$(gh api user --jq .login 2>/dev/null)
+        [ -z "$t_owner" ] && t_owner="?"
+        t_name="$tr_spec"
+    fi
+    t_full="${t_owner}/${t_name}"
+
+    echo ""
+    echo "  ${LAVENDER}${BOLD}repoz${RESET} ${OVERLAY}— ${t_full}${RESET}"
+    echo "  ${DIV}"
+    echo ""
+
+    # Locate a local clone by directory name (case-insensitive, dotted variant too)
+    t_local=""
+    t_lc=$(echo "$t_name" | tr '[:upper:]' '[:lower:]')
+    while IFS= read -r gitdir; do
+        [ -z "$gitdir" ] && continue
+        d="${gitdir%/.git}"
+        b=$(basename "$d" | tr '[:upper:]' '[:lower:]')
+        if [ "$b" = "$t_lc" ] || [ "$b" = ".$t_lc" ]; then t_local="$d"; break; fi
+    done < <(find "$HOME" -maxdepth 4 -type d \
+                -not -path "*/Library/*" -not -path "*/.Trash/*" \
+                -not -path "*/node_modules/*" -not -path "*/.cache/*" \
+                -name ".git" 2>/dev/null)
+
+    if [ -n "$t_local" ]; then
+        git -C "$t_local" fetch --quiet 2>/dev/null || true
+        t_display="~${t_local#$HOME}"
+        t_changed=$(git -C "$t_local" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+        t_behind=0; t_ahead=0
+        while IFS= read -r branch; do
+            [ -z "$branch" ] && continue
+            up=$(git -C "$t_local" rev-parse --abbrev-ref "${branch}@{upstream}" 2>/dev/null) || continue
+            bb=$(git -C "$t_local" rev-list --count "${branch}..${up}" 2>/dev/null || echo 0)
+            aa=$(git -C "$t_local" rev-list --count "${up}..${branch}" 2>/dev/null || echo 0)
+            t_behind=$(( t_behind + bb )); t_ahead=$(( t_ahead + aa ))
+        done < <(git -C "$t_local" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null)
+
+        t_status=""; t_color="$GREEN"
+        (( t_behind > 0 )) && t_status="${t_behind} behind"
+        if (( t_ahead > 0 )); then [ -n "$t_status" ] && t_status="${t_status}, "; t_status="${t_status}${t_ahead} ahead"; fi
+        if (( t_changed > 0 )); then [ -n "$t_status" ] && t_status="${t_status}, "; t_status="${t_status}${t_changed} uncommitted"; fi
+        if [ -z "$t_status" ]; then t_status="synced"; else t_color="$PEACH"; (( t_changed > 0 )) && t_color="$YELLOW"; fi
+        print_row "$t_name" "$t_status" "$t_color" "$t_display"
+    else
+        print_row "$t_full" "not cloned" "$RED"
     fi
     echo ""
     exit 0
@@ -652,8 +717,13 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
             fi
         done <<< "$home_git_dirs"
 
-        # Skip if already shown in pass 1
-        case "$checked_paths" in *"|${local_path}"*) continue ;; esac
+        # Skip if already shown in pass 1. Guard on a non-empty path: when a repo
+        # isn't cloned, local_path is "" and the pattern would collapse to *"|"*,
+        # which matches any populated checked_paths and would wrongly drop every
+        # not-cloned repo.
+        if [ -n "$local_path" ]; then
+            case "$checked_paths" in *"|${local_path}"*) continue ;; esac
+        fi
 
         elsewhere_found_names+=("$name")
         elsewhere_found_paths+=("${local_path:-}")
@@ -696,7 +766,7 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
                     open_prs_total=$(( open_prs_total + pc ))
                 fi
             fi
-            print_row "$name" "$nc_status" "$OVERLAY"
+            print_row "$name" "$nc_status" "$RED"
             not_local=$(( not_local + 1 ))
         fi
     done
