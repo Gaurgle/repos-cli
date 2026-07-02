@@ -86,6 +86,7 @@ repoz [options]
 | `--author NAME` | Filter displayed commits by author (partial match) |
 | `-s, --stat` | Show diff stats per commit (`+42 -17`) |
 | `-p, --prs` | Also show open pull requests for each repo |
+| `--no-glyphs` | Hide the org/private/public repo-type glyphs |
 | `-h, --help` | Show help |
 
 ### Examples
@@ -147,6 +148,16 @@ repoz, since 2026-03-31  Evening (18-00)
 
 Each commit line shows the author name. When a repo has divergence (behind, ahead, or uncommitted), diff stats (`+lines -lines`) are shown automatically. Use `-s` to force diff stats on synced repos too.
 
+A Nerd Font glyph before each repo name marks its type (a legend is printed in the summary footer):
+
+| Glyph | Meaning |
+|-------|---------|
+|  (building, mauve) | Repo owned by an organization |
+|  (lock, peach) | Personal **private** repo |
+|  (globe, green) | Personal **public** repo |
+
+Glyphs need a [Nerd Font](https://www.nerdfonts.com/). Disable them with `--no-glyphs`, or override the characters/toggle in the config file. Repos with no GitHub metadata (local-only, in the "local changes" section) show no glyph.
+
 The output width adapts to your terminal size.
 
 ---
@@ -165,6 +176,13 @@ REPO_LIMIT=50
 
 # Where to look for local clones (overridden by REPO_CHECK_DIR env var)
 REPO_CHECK_DIR=~/repos
+
+# Repo-type glyphs (need a Nerd Font). Set SHOW_GLYPHS=false to hide them,
+# or override any glyph with your own character.
+SHOW_GLYPHS=true
+GLYPH_ORG=
+GLYPH_PRIVATE=
+GLYPH_PUBLIC=
 ```
 
 All settings are optional. Without a config file, defaults are used.

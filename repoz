@@ -9,6 +9,12 @@ WORK_START=9
 WORK_END=18
 REPO_LIMIT=50
 EXTRA_DIRS=()
+SHOW_GLYPHS=true
+# Nerd Font glyphs (bytes, not \u — macOS bash 3.2 has no \u in $'…').
+# Defaults applied after config load so a config value wins.
+GLYPH_ORG=""
+GLYPH_PRIVATE=""
+GLYPH_PUBLIC=""
 TERM_W=$(stty size </dev/tty 2>/dev/null | awk '{print $2}') || true
 : "${TERM_W:=${COLUMNS:-0}}"
 (( TERM_W < 40 )) && TERM_W=$(tput cols 2>/dev/null || echo 80)
@@ -24,6 +30,10 @@ if [ -f "$CONFIG_FILE" ]; then
             REPO_LIMIT)  REPO_LIMIT=$((10#$val)) ;;
             REPO_CHECK_DIR) [ -z "${REPO_CHECK_DIR:-}" ] && REPO_DIR="$val" ;;
             EXTRA_DIRS) IFS=':' read -ra EXTRA_DIRS <<< "$val" ;;
+            SHOW_GLYPHS)   SHOW_GLYPHS="$val" ;;
+            GLYPH_ORG)     GLYPH_ORG="$val" ;;
+            GLYPH_PRIVATE) GLYPH_PRIVATE="$val" ;;
+            GLYPH_PUBLIC)  GLYPH_PUBLIC="$val" ;;
         esac
     done < "$CONFIG_FILE"
 fi
@@ -55,6 +65,18 @@ RED=$(printf '\033[38;2;243;139;168m')      # not cloned / alert
 BOLD=$(printf '\033[1m')
 RESET=$(printf '\033[0m')
 
+# --- Glyph defaults (Font Awesome, as UTF-8 bytes) + semantic colors ---
+#   org -> building (U+F1AD)  private -> lock (U+F023)  public -> globe (U+F0AC)
+: "${GLYPH_ORG:=$(printf '\357\206\255')}"
+: "${GLYPH_PRIVATE:=$(printf '\357\200\243')}"
+: "${GLYPH_PUBLIC:=$(printf '\357\202\254')}"
+GLYPH_ORG_COLOR="$MAUVE"      # org
+GLYPH_PRIVATE_COLOR="$PEACH"  # personal, private
+GLYPH_PUBLIC_COLOR="$GREEN"   # personal, public
+# name -> "<type>\t<isPrivate>" lookup, populated after the GitHub scan.
+# Empty in dirty/target modes (no listing built), so glyphs are simply omitted.
+meta_lookup=""
+
 # --- Slot labels from config ---
 slot_label_work="Work ($(printf '%02d' $WORK_START)-$(printf '%02d' $WORK_END))"
 slot_label_evening="Evening ($(printf '%02d' $WORK_END)-00)"
@@ -83,6 +105,7 @@ Options:
   --before DATE   Only show repos pushed before DATE (same formats as --since)
   -s, --stat      Show diff stats per commit (+lines/-lines)
   -p, --prs       Also show open pull requests for each repo
+  --no-glyphs     Hide the org/private/public repo-type glyphs
   -h, --help      Show this help
 
 Time slots: Work (09–18), Evening (18–00). Default mode shows activity
@@ -111,6 +134,7 @@ while [ $# -gt 0 ]; do
         -d|--dirty)  MODE="dirty"; shift ;;
         -s|--stat)   SHOW_STAT=true; shift ;;
         -p|--prs)    SHOW_PRS=true; shift ;;
+        --no-glyphs) SHOW_GLYPHS=false; shift ;;
         -h|--help) usage; exit 0 ;;
         /*) TARGET_REPO="$1"; shift ;;
         *) echo "Unknown: $1"; usage; exit 1 ;;
@@ -172,16 +196,39 @@ section_div() {
 
 W=$(( DIV_W - 4 ))
 
+# Emit the colored glyph for a repo (org / private / public), or nothing when
+# glyphs are off or the repo has no GitHub metadata (e.g. local-only repos).
+get_repo_glyph() {
+    $SHOW_GLYPHS || return
+    [ -z "$meta_lookup" ] && return
+    local line
+    line=$(printf '%s\n' "$meta_lookup" | awk -F'\t' -v n="$1" '$1 == n { print; exit }')
+    [ -z "$line" ] && return
+    local otype priv
+    otype=$(printf '%s' "$line" | cut -f2)
+    priv=$(printf '%s' "$line" | cut -f3)
+    if [ "$otype" = "Organization" ]; then
+        printf '%s%s%s' "$GLYPH_ORG_COLOR" "$GLYPH_ORG" "$RESET"
+    elif [ "$priv" = "true" ]; then
+        printf '%s%s%s' "$GLYPH_PRIVATE_COLOR" "$GLYPH_PRIVATE" "$RESET"
+    else
+        printf '%s%s%s' "$GLYPH_PUBLIC_COLOR" "$GLYPH_PUBLIC" "$RESET"
+    fi
+}
+
 print_row() {
     local name="$1" status="$2" color="$3" path="${4:-}"
-    local label="$name"
-    [ -n "$path" ] && label="${name} ${OVERLAY}${path}${RESET}"
+    local glyph glyph_w=0
+    glyph=$(get_repo_glyph "$name")
+    [ -n "$glyph" ] && glyph_w=2   # 1 cell for the glyph + 1 trailing space
     local label_len=${#name}
     [ -n "$path" ] && label_len=$(( ${#name} + 1 + ${#path} ))
-    local pad=$(( W - label_len - ${#status} ))
+    local pad=$(( W - glyph_w - label_len - ${#status} ))
     (( pad < 3 )) && pad=3
     local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
-    printf "    ${SAPPHIRE}%s${RESET}" "$name"
+    printf "    "
+    [ -n "$glyph" ] && printf "%s " "$glyph"
+    printf "${SAPPHIRE}%s${RESET}" "$name"
     [ -n "$path" ] && printf " ${OVERLAY}%s${RESET}" "$path"
     printf " ${SURFACE}%s${RESET} %s%s${RESET}\n" "$dots" "$color" "$status"
 }
@@ -318,12 +365,12 @@ raw_json=$(gh api graphql -f query="
   { viewer {
     repositories(first: ${REPO_LIMIT}, orderBy: {field: PUSHED_AT, direction: DESC},
       affiliations: [OWNER, COLLABORATOR, ORGANIZATION_MEMBER]) {
-      nodes { name nameWithOwner pushedAt ${pr_fields} }
+      nodes { name nameWithOwner isPrivate owner { __typename } pushedAt ${pr_fields} }
     }
     organizations(first: 25) {
       nodes {
         repositories(first: ${REPO_LIMIT}, orderBy: {field: PUSHED_AT, direction: DESC}) {
-          nodes { name nameWithOwner pushedAt ${pr_fields} }
+          nodes { name nameWithOwner isPrivate owner { __typename } pushedAt ${pr_fields} }
         }
       }
     }
@@ -341,6 +388,13 @@ repos_json=$(echo "$raw_json" | jq '
   | sort_by(.pushedAt) | reverse
   | { data: { viewer: { repositories: { nodes: . } } } }
 ')
+
+# name -> "<ownerType>\t<isPrivate>" so print_row can pick a glyph per repo.
+meta_lookup=$(echo "$repos_json" | jq -r '
+    .data.viewer.repositories.nodes[]
+    | select(.pushedAt != null)
+    | "\(.name)\t\(.owner.__typename)\t\(.isPrivate)"
+' 2>/dev/null)
 
 # --- Determine cutoff and header based on mode ---
 active_repos=()
@@ -836,4 +890,7 @@ parts=""
 $SHOW_PRS && [ $open_prs_total -gt 0 ] && parts="${parts}${MAUVE}${open_prs_total} open PRs${RESET} ${SURFACE}·${RESET} "
 parts="${parts% ${SURFACE}·${RESET} }"
 echo "  ${parts}"
+if $SHOW_GLYPHS; then
+    echo "  ${GLYPH_ORG_COLOR}${GLYPH_ORG}${RESET} ${OVERLAY}org${RESET}   ${GLYPH_PRIVATE_COLOR}${GLYPH_PRIVATE}${RESET} ${OVERLAY}private${RESET}   ${GLYPH_PUBLIC_COLOR}${GLYPH_PUBLIC}${RESET} ${OVERLAY}public${RESET}"
+fi
 echo ""
