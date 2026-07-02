@@ -62,6 +62,26 @@ chmod +x ~/.local/bin/repoz
 
 ---
 
+## Updating
+
+Once installed, keep it current with:
+
+```sh
+git -C ~/Repos/repoz pull   # get the latest (you stay in control of this)
+repoz --update              # reinstall the pulled version
+```
+
+Or combine the two: `repoz --update --pull` runs `git pull --ff-only` in the
+clone first, then reinstalls. The fast-forward-only pull never clobbers local
+work: if the clone can't fast-forward, it stops and skips the install.
+
+`--update` reads the source from your clone. It looks in `~/Repos/repoz` by
+default; if yours lives elsewhere, set `REPOZ_SRC` (env var or in the config
+file). Note the first upgrade to a version that has `--update` still needs a
+manual `./install.sh` (or `cp`) to bootstrap the flag onto the installed copy.
+
+---
+
 ## Usage
 
 ```sh
@@ -87,6 +107,8 @@ repoz [options]
 | `-s, --stat` | Show diff stats per commit (`+42 -17`) |
 | `-p, --prs` | Also show open pull requests for each repo |
 | `--no-glyphs` | Hide the org/private/public repo-type glyphs |
+| `--update` | Reinstall repoz from your local clone (no pull) |
+| `--update --pull` | `git pull --ff-only` the clone first, then reinstall |
 | `-h, --help` | Show help |
 
 ### Examples
@@ -176,6 +198,9 @@ REPO_LIMIT=50
 
 # Where to look for local clones (overridden by REPO_CHECK_DIR env var)
 REPO_CHECK_DIR=~/repos
+
+# Where 'repoz --update' reads the source from (default: ~/Repos/repoz)
+REPOZ_SRC=~/Repos/repoz
 
 # Repo-type glyphs (need a Nerd Font). Set SHOW_GLYPHS=false to hide them,
 # or override any glyph with your own character.

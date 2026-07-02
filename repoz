@@ -29,6 +29,7 @@ if [ -f "$CONFIG_FILE" ]; then
             WORK_END)    WORK_END=$((10#$val)) ;;
             REPO_LIMIT)  REPO_LIMIT=$((10#$val)) ;;
             REPO_CHECK_DIR) [ -z "${REPO_CHECK_DIR:-}" ] && REPO_DIR="$val" ;;
+            REPOZ_SRC) [ -z "${REPOZ_SRC:-}" ] && REPOZ_SRC="$val" ;;
             EXTRA_DIRS) IFS=':' read -ra EXTRA_DIRS <<< "$val" ;;
             SHOW_GLYPHS)   SHOW_GLYPHS="$val" ;;
             GLYPH_ORG)     GLYPH_ORG="$val" ;;
@@ -37,6 +38,9 @@ if [ -f "$CONFIG_FILE" ]; then
         esac
     done < "$CONFIG_FILE"
 fi
+
+# Where 'repoz --update' reads the source from (env > config > default clone).
+REPOZ_SRC="${REPOZ_SRC:-$HOME/Repos/repoz}"
 
 # Build validated scan dirs (REPO_DIR + existing EXTRA_DIRS)
 SCAN_DIRS=("$REPO_DIR")
@@ -106,12 +110,15 @@ Options:
   -s, --stat      Show diff stats per commit (+lines/-lines)
   -p, --prs       Also show open pull requests for each repo
   --no-glyphs     Hide the org/private/public repo-type glyphs
+  --update        Reinstall repoz from your local clone (no pull)
+  --update --pull git pull --ff-only the clone first, then reinstall
   -h, --help      Show this help
 
 Time slots: Work (09–18), Evening (18–00). Default mode shows activity
 since the previous slot boundary, so you see what changed while away.
 Config: ~/.config/repoz/config (or REPO_CHECK_DIR env var).
 Set EXTRA_DIRS=/path/one:/path/two to scan additional directories.
+Set REPOZ_SRC=/path/to/clone if --update can't find your repoz clone.
 EOF
 }
 
@@ -123,6 +130,7 @@ AUTHOR_FILTER=""
 SHOW_PRS=false
 SHOW_STAT=false
 TARGET_REPO=""
+UPDATE_PULL=false
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -135,11 +143,54 @@ while [ $# -gt 0 ]; do
         -s|--stat)   SHOW_STAT=true; shift ;;
         -p|--prs)    SHOW_PRS=true; shift ;;
         --no-glyphs) SHOW_GLYPHS=false; shift ;;
+        --update)    MODE="update"; shift ;;
+        --pull)      UPDATE_PULL=true; shift ;;
         -h|--help) usage; exit 0 ;;
         /*) TARGET_REPO="$1"; shift ;;
         *) echo "Unknown: $1"; usage; exit 1 ;;
     esac
 done
+
+# --- Self-update: reinstall this command from the local clone (no pull unless --pull) ---
+if [ "$MODE" = "update" ]; then
+    src_file="$REPOZ_SRC/repoz"
+    if [ ! -f "$src_file" ]; then
+        echo "  repoz source not found at ${src_file}"
+        echo "  Set REPOZ_SRC (env or ~/.config/repoz/config) to your repoz clone."
+        exit 1
+    fi
+
+    if $UPDATE_PULL; then
+        echo "  Pulling ${REPOZ_SRC} (fast-forward only)…"
+        if ! git -C "$REPOZ_SRC" pull --ff-only; then
+            echo "  Pull could not fast-forward — resolve it manually, then rerun. Install skipped."
+            exit 1
+        fi
+    fi
+
+    # Resolve the path of the running script, following any symlinks (bash 3.2 safe).
+    self_src="${BASH_SOURCE[0]:-$0}"
+    while [ -h "$self_src" ]; do
+        self_dir=$(cd -P "$(dirname "$self_src")" && pwd)
+        self_src=$(readlink "$self_src")
+        case "$self_src" in /*) ;; *) self_src="$self_dir/$self_src" ;; esac
+    done
+    target="$(cd -P "$(dirname "$self_src")" && pwd)/$(basename "$self_src")"
+
+    if [ "$src_file" -ef "$target" ]; then
+        echo "  Running the source copy directly (${target}); nothing to install."
+        exit 0
+    fi
+
+    if cp "$src_file" "$target" && chmod +x "$target"; then
+        echo "  Updated ${target}"
+        echo "  from    ${src_file}"
+    else
+        echo "  Failed to write ${target} (check permissions)."
+        exit 1
+    fi
+    exit 0
+fi
 
 # --- Resolve relative dates for --since ---
 if [ "$MODE" = "since" ] && [ -n "$SINCE_ARG" ]; then
