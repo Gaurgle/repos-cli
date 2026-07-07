@@ -322,14 +322,20 @@ print_row() {
         local name="$1" status="$2" color="$3" path="${4:-}"
         local glyph glyph_w=0
         glyph=$(get_repo_glyph "$name")
-        [ -n "$glyph" ] && glyph_w=2 # 1 cell for the glyph + 1 trailing space
+        $SHOW_GLYPHS && glyph_w=2 # 1 cell for the glyph + 1 trailing space
         local label_len=${#name}
         [ -n "$path" ] && label_len=$((${#name} + 1 + ${#path}))
         local pad=$((W - glyph_w - label_len - ${#status}))
         ((pad < 3)) && pad=3
         local dots=$(printf '%*s' "$pad" '' | tr ' ' '·')
         printf "    "
-        [ -n "$glyph" ] && printf "%s " "$glyph"
+        if $SHOW_GLYPHS; then
+                if [ -n "$glyph" ]; then
+                        printf "%s " "$glyph"
+                else
+                        printf "  "
+                fi
+        fi
         printf "${SAPPHIRE}%s${RESET}" "$name"
         [ -n "$path" ] && printf " ${OVERLAY}%s${RESET}" "$path"
         printf " ${SURFACE}%s${RESET} %s%s${RESET}\n" "$dots" "$color" "$status"
@@ -656,8 +662,8 @@ print_commit_line() {
         right="${right}${author}"
         local right_len=${#right}
 
-        # Available width: 6 indent + 3 format spaces + 1 right margin = 10
-        local avail=$((TERM_W - 10))
+        # Available width: 8 indent + 3 format spaces + 1 right margin = 12
+        local avail=$((TERM_W - 11))
         local left="${hash} ${message}"
         local max_left=$((avail - right_len - 3))
 
@@ -683,7 +689,7 @@ print_commit_line() {
         fi
         colored_right="${colored_right}${OVERLAY}${author}${RESET}"
 
-        printf "      ${HASH_COLOR}%s${RESET} %s ${SURFACE}%s${RESET} %s\n" \
+        printf "    ${SURFACE}└─${RESET} ${HASH_COLOR}%s${RESET} %s ${SURFACE}%s${RESET} %s\n" \
                 "$hash" "${left#* }" "$dots" "$colored_right"
 }
 
