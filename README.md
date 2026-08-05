@@ -147,25 +147,25 @@ repo cloned inside one of those, or itself named like one, is not found.
 repoz, since 2026-03-31  Evening (18-00)
 ──────────────────────────────────────────────────────────────────────
 
-  frontend-app ~/repos/acme/frontend-app ··················· 2 behind
+  frontend-app ~/repos/acme/frontend-app ······················· 2↓
     a1b2c3d feat: add dark mode toggle ··········· +18 -3  alice
     e4f5g6h fix: navbar responsive breakpoint ····· +4 -2  bob
-  backend-api ~/repos/acme/backend-api ············· 3 uncommitted
+  backend-api ~/repos/acme/backend-api ························· 3!
     d7e8f9a refactor: extract auth middleware ···· +42 -17  alice
-  mobile-app ~/repos/acme/mobile-app ········ 1 ahead, 2 uncommitted
+  mobile-app ~/repos/acme/mobile-app ······················· 1↑ 2!
     b2c3d4e feat: push notification support ······ +95 -8  alice
 
 ── also active ───────────────────────────────────────────────────────
 
-  docs ~/work/docs ············································ 1 behind
+  docs ~/work/docs ················································ 1↓
     c5d6e7f docs: update API reference ·················· +12  bob
 
 ── local changes ─────────────────────────────────────────────────────
 
-  infra ~/repos/acme/infra ···························· 2 uncommitted
+  infra ~/repos/acme/infra ···································· 2! 1⚑
 
 ──────────────────────────────────────────────────────────────────────
-2 behind · 1 ahead · 2 uncommitted · 1 synced
+2 behind · 1 ahead · 2 uncommitted · 1 stashed · 1 synced
 ```
 
 | Section | What it shows |
@@ -175,6 +175,20 @@ repoz, since 2026-03-31  Evening (18-00)
 | Local changes | Repos with uncommitted or untracked files, even if there was no recent GitHub activity |
 
 Each commit line shows the author name. When a repo has divergence (behind, ahead, or uncommitted), diff stats (`+lines -lines`) are shown automatically. Use `-s` to force diff stats on synced repos too.
+
+The countable states are written as symbols, so the status column stays short
+even when a repo is in several states at once:
+
+| Symbol | Meaning |
+|--------|---------|
+| `2↓` | 2 commits behind the remote (peach) |
+| `1↑` | 1 commit not pushed anywhere (peach) |
+| `3!` | 3 uncommitted or untracked files (yellow) |
+| `1⚑` | 1 stash waiting (mauve) |
+
+They need no special font. Everything that is not a count stays a word:
+`synced`, `not cloned`, and the in-progress operations below. The summary
+footer also spells the counts out, so it doubles as the legend.
 
 A Nerd Font glyph before each repo name marks its type (a legend is printed in the summary footer):
 
@@ -186,12 +200,13 @@ A Nerd Font glyph before each repo name marks its type (a legend is printed in t
 
 Glyphs need a [Nerd Font](https://www.nerdfonts.com/). Disable them with `--no-glyphs`, or override the characters/toggle in the config file. Repos with no GitHub metadata (local-only, in the "local changes" section) show no glyph.
 
-Repos stuck mid-operation (merge, rebase, cherry-pick, revert, bisect) are
-flagged in red, e.g. `rebasing, 2 uncommitted`, and counted as
-`N in progress` in the summary.
+Repos stuck mid-operation (merge, rebase, cherry-pick, revert, bisect) keep a
+word rather than a symbol, because they are rare and worth reading: the row
+turns red and shows e.g. `rebasing, 2!`, counted as `N in progress` in the
+summary.
 
-Stashes count as forgotten work: a repo with stashed changes shows
-`N stashed` (mauve) even when otherwise clean, and the summary totals them.
+Stashes count as forgotten work: a repo with stashed changes shows `1⚑`
+(mauve) even when otherwise clean, and the summary totals them.
 
 The output width adapts to your terminal size.
 

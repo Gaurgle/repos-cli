@@ -91,6 +91,17 @@ RESET=$(printf '\033[0m')
 GLYPH_ORG_COLOR="$MAUVE"     # org
 GLYPH_PRIVATE_COLOR="$PEACH" # personal, private
 GLYPH_PUBLIC_COLOR="$GREEN"  # personal, public
+
+# --- Status symbols for the countable states (plain Unicode, no Nerd Font) ---
+#   behind -> down arrow (U+2193)  ahead -> up arrow (U+2191)
+#   stashed -> flag (U+2691).      uncommitted is a plain ASCII bang.
+# Words are kept for the categorical states (synced, not cloned, and the
+# in-progress operations), and the summary footer still spells all four out,
+# so it doubles as the legend.
+SYM_BEHIND=$(printf '\342\206\223')
+SYM_AHEAD=$(printf '\342\206\221')
+SYM_DIRTY='!'
+SYM_STASH=$(printf '\342\232\221')
 # name -> "<type>\t<isPrivate>" lookup, populated after the GitHub scan.
 # Empty in dirty/target modes (no listing built), so glyphs are simply omitted.
 meta_lookup=""
@@ -409,6 +420,40 @@ stash_count() {
         fi
 }
 
+# Join the countable states into one compact symbol group, e.g. "2↓ 1↑ 3!".
+# Zero counts are omitted entirely; an all-zero repo yields an empty string,
+# which callers read as "nothing to report".
+status_symbols() {
+        local behind="$1" ahead="$2" dirty="$3" stashes="$4" out=""
+        if [ "$behind" -gt 0 ]; then
+                out="${behind}${SYM_BEHIND}"
+        fi
+        if [ "$ahead" -gt 0 ]; then
+                [ -n "$out" ] && out="${out} "
+                out="${out}${ahead}${SYM_AHEAD}"
+        fi
+        if [ "$dirty" -gt 0 ]; then
+                [ -n "$out" ] && out="${out} "
+                out="${out}${dirty}${SYM_DIRTY}"
+        fi
+        if [ "$stashes" -gt 0 ]; then
+                [ -n "$out" ] && out="${out} "
+                out="${out}${stashes}${SYM_STASH}"
+        fi
+        printf '%s' "$out"
+}
+
+# Prefix a symbol group with an in-progress operation word, when there is one:
+# "rebasing, 1!". Either part may be empty.
+status_with_op() {
+        local op="$1" sym="$2"
+        if [ -n "$op" ] && [ -n "$sym" ]; then
+                printf '%s, %s' "$op" "$sym"
+        else
+                printf '%s%s' "$op" "$sym"
+        fi
+}
+
 # Release status relative to the newest reachable version-ish tag. The
 # --match glob skips marker tags like "latest"; --no-merges keeps git-flow
 # back-merges from counting as unreleased work (borrowed from drydock).
@@ -480,23 +525,11 @@ if [ "$MODE" = "dirty" ]; then
 
                 [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && [ -z "$op" ] && [ "$stashes" -eq 0 ] && continue
 
-                status=""
-                [ -n "$op" ] && status="$op"
-                if [ "$local_ahead" -gt 0 ]; then
-                        [ -n "$status" ] && status="${status}, "
-                        status="${status}${local_ahead} ahead"
-                fi
-                if [ "$changed" -gt 0 ]; then
-                        [ -n "$status" ] && status="${status}, "
-                        status="${status}${changed} uncommitted"
-                fi
-                if [ "$stashes" -gt 0 ]; then
-                        [ -n "$status" ] && status="${status}, "
-                        status="${status}${stashes} stashed"
-                fi
+                status=$(status_with_op "$op" \
+                        "$(status_symbols 0 "$local_ahead" "$changed" "$stashes")")
                 color="$PEACH"
                 [ "$changed" -gt 0 ] && color="$YELLOW"
-                [ "$status" = "${stashes} stashed" ] && color="$MAUVE"
+                [ "$status" = "${stashes}${SYM_STASH}" ] && color="$MAUVE"
                 [ -n "$op" ] && color="$RED"
                 print_row "$name" "$status" "$color" "$display"
                 dirty_count=$((dirty_count + 1))
@@ -564,24 +597,14 @@ if [ -n "$TARGET_REPO" ]; then
                         t_ahead=$((t_ahead + aa))
                 done < <(run_git -C "$t_local" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null)
 
-                t_status=""
                 t_color="$GREEN"
-                [ -n "$t_op" ] && t_status="$t_op"
-                if ((t_behind > 0)); then
-                        [ -n "$t_status" ] && t_status="${t_status}, "
-                        t_status="${t_status}${t_behind} behind"
-                fi
-                if ((t_ahead > 0)); then
-                        [ -n "$t_status" ] && t_status="${t_status}, "
-                        t_status="${t_status}${t_ahead} ahead"
-                fi
-                if ((t_changed > 0)); then
-                        [ -n "$t_status" ] && t_status="${t_status}, "
-                        t_status="${t_status}${t_changed} uncommitted"
-                fi
+                t_stashes=$(stash_count "$t_local")
+                t_status=$(status_with_op "$t_op" \
+                        "$(status_symbols "$t_behind" "$t_ahead" "$t_changed" "$t_stashes")")
                 if [ -z "$t_status" ]; then t_status="synced"; else
                         t_color="$PEACH"
                         ((t_changed > 0)) && t_color="$YELLOW"
+                        [ "$t_status" = "${t_stashes}${SYM_STASH}" ] && t_color="$MAUVE"
                         [ -n "$t_op" ] && t_color="$RED"
                 fi
                 print_row "$t_name" "$t_status" "$t_color" "$t_display"
@@ -888,31 +911,16 @@ check_repo() {
         local stashes
         stashes=$(stash_count "$local_path")
 
-        local status_parts=""
-        if [ -n "$op" ]; then
-                status_parts="$op"
-                op_count=$((op_count + 1))
-        fi
-        if ((behind > 0)); then
-                [ -n "$status_parts" ] && status_parts="${status_parts}, "
-                status_parts="${status_parts}${behind} behind"
-                needs_pull=$((needs_pull + 1))
-        fi
-        if ((ahead > 0)); then
-                [ -n "$status_parts" ] && status_parts="${status_parts}, "
-                status_parts="${status_parts}${ahead} ahead"
-                has_unpushed=$((has_unpushed + 1))
-        fi
-        if ((dirty > 0)); then
-                [ -n "$status_parts" ] && status_parts="${status_parts}, "
-                status_parts="${status_parts}${dirty} uncommitted"
-                dirty_count=$((dirty_count + 1))
-        fi
-        if [ "$stashes" -gt 0 ]; then
-                [ -n "$status_parts" ] && status_parts="${status_parts}, "
-                status_parts="${status_parts}${stashes} stashed"
-                stash_total=$((stash_total + stashes))
-        fi
+        local status_parts
+        status_parts=$(status_with_op "$op" \
+                "$(status_symbols "$behind" "$ahead" "$dirty" "$stashes")")
+
+        # Counters feed the summary footer, which still uses words.
+        [ -n "$op" ] && op_count=$((op_count + 1))
+        ((behind > 0)) && needs_pull=$((needs_pull + 1))
+        ((ahead > 0)) && has_unpushed=$((has_unpushed + 1))
+        ((dirty > 0)) && dirty_count=$((dirty_count + 1))
+        [ "$stashes" -gt 0 ] && stash_total=$((stash_total + stashes))
 
         # Append PR count if --prs and repo has open PRs
         local pr_text=""
@@ -933,7 +941,7 @@ check_repo() {
         if [ -n "$status_parts" ]; then
                 local color="$PEACH"
                 ((dirty > 0)) && color="$YELLOW"
-                [ "$status_parts" = "${stashes} stashed" ] && color="$MAUVE"
+                [ "$status_parts" = "${stashes}${SYM_STASH}" ] && color="$MAUVE"
                 [ -n "$op" ] && color="$RED"
                 print_row "$name" "$status_parts" "$color" "$display"
                 has_changes=true
@@ -1155,27 +1163,13 @@ while IFS= read -r gitdir; do
                 has_local_changes=true
         fi
 
-        status=""
-        if [ -n "$op" ]; then
-                status="$op"
-                op_count=$((op_count + 1))
-        fi
-        if [ "$local_ahead" -gt 0 ]; then
-                [ -n "$status" ] && status="${status}, "
-                status="${status}${local_ahead} ahead"
-        fi
-        if [ "$changed" -gt 0 ]; then
-                [ -n "$status" ] && status="${status}, "
-                status="${status}${changed} uncommitted"
-        fi
-        if [ "$stashes" -gt 0 ]; then
-                [ -n "$status" ] && status="${status}, "
-                status="${status}${stashes} stashed"
-                stash_total=$((stash_total + stashes))
-        fi
+        status=$(status_with_op "$op" \
+                "$(status_symbols 0 "$local_ahead" "$changed" "$stashes")")
+        [ -n "$op" ] && op_count=$((op_count + 1))
+        [ "$stashes" -gt 0 ] && stash_total=$((stash_total + stashes))
         color="$PEACH"
         [ "$changed" -gt 0 ] && color="$YELLOW"
-        [ "$status" = "${stashes} stashed" ] && color="$MAUVE"
+        [ "$status" = "${stashes}${SYM_STASH}" ] && color="$MAUVE"
         [ -n "$op" ] && color="$RED"
         print_row "$name" "$status" "$color" "$display"
         dirty_count=$((dirty_count + 1))
