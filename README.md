@@ -132,6 +132,10 @@ By default, **repoz** searches for local clones under the current directory. Set
 REPO_CHECK_DIR=~/code repoz
 ```
 
+The machine-wide scan prunes common dependency and build directories
+(node_modules, vendor, target, venv, dist, build, Pods, and friends), so a
+repo cloned inside one of those, or itself named like one, is not found.
+
 ---
 
 ## Output

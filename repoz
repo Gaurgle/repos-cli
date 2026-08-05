@@ -426,6 +426,20 @@ release_status() {
         fi
 }
 
+# One pruned scan of HOME for git repos. Pruning by NAME stops descent into
+# dependency and build trees entirely (the old -not -path filters still
+# traversed them). Tradeoff: a repo literally named e.g. "build" or
+# "target" under HOME is skipped; acceptable for the speed win.
+scan_home_git_dirs() {
+        find "$HOME" -maxdepth 4 \( \
+                -name Library -o -name .Trash -o -name .cache -o \
+                -name node_modules -o -name vendor -o -name target -o \
+                -name .venv -o -name venv -o -name dist -o -name build -o \
+                -name Pods -o -name DerivedData -o -name .terraform -o \
+                -name .gradle \) -prune -o \
+                -type d -name .git -print 2>/dev/null
+}
+
 # --- Dirty mode: local only, no GitHub ---
 if [ "$MODE" = "dirty" ]; then
         echo ""
@@ -531,10 +545,7 @@ if [ -n "$TARGET_REPO" ]; then
                         t_local="$d"
                         break
                 fi
-        done < <(find "$HOME" -maxdepth 4 -type d \
-                -not -path "*/Library/*" -not -path "*/.Trash/*" \
-                -not -path "*/node_modules/*" -not -path "*/.cache/*" \
-                -name ".git" 2>/dev/null)
+        done < <(scan_home_git_dirs)
 
         if [ -n "$t_local" ]; then
                 run_git -C "$t_local" fetch --quiet --prune 2>/dev/null || true
@@ -1017,12 +1028,7 @@ done
 # --- Pass 2: repos found elsewhere on the machine ---
 if [ ${#elsewhere_repos[@]} -gt 0 ]; then
         # One scan of HOME for all git repos (instead of one find per repo)
-        home_git_dirs=$(find "$HOME" -maxdepth 4 -type d \
-                -not -path "*/Library/*" \
-                -not -path "*/.Trash/*" \
-                -not -path "*/node_modules/*" \
-                -not -path "*/.cache/*" \
-                -name ".git" 2>/dev/null)
+        home_git_dirs=$(scan_home_git_dirs)
 
         # Start parallel fetches for found elsewhere repos
         elsewhere_found_names=()
