@@ -105,6 +105,7 @@ repoz [options]
 |------|-------------|
 | `--author NAME` | Filter displayed commits by author (partial match) |
 | `-s, --stat` | Show diff stats per commit (`+42 -17`) |
+| `-r, --releases` | Show release status per repo (`N since TAG` / `released TAG` / `unreleased`) |
 | `-p, --prs` | Also show open pull requests for each repo |
 | `--no-glyphs` | Hide the org/private/public repo-type glyphs |
 | `--update` | Reinstall repoz from your local clone (no pull) |
@@ -120,6 +121,7 @@ repoz -s --since 1w                      # last week with diff stats on all repo
 repoz --since 1w --author andreas        # only my commits
 repoz --since 1w --before 3d             # last week, excluding last 3 days
 repoz -a -p                              # everything + PRs
+repoz -a -r                              # everything, with release status
 repoz -d                                 # local dirty repos only
 repoz -t                                 # today
 ```
