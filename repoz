@@ -496,6 +496,7 @@ if [ "$MODE" = "dirty" ]; then
                 fi
                 color="$PEACH"
                 [ "$changed" -gt 0 ] && color="$YELLOW"
+                [ "$status" = "${stashes} stashed" ] && color="$MAUVE"
                 [ -n "$op" ] && color="$RED"
                 print_row "$name" "$status" "$color" "$display"
                 dirty_count=$((dirty_count + 1))
@@ -1155,7 +1156,10 @@ while IFS= read -r gitdir; do
         fi
 
         status=""
-        [ -n "$op" ] && status="$op"
+        if [ -n "$op" ]; then
+                status="$op"
+                op_count=$((op_count + 1))
+        fi
         if [ "$local_ahead" -gt 0 ]; then
                 [ -n "$status" ] && status="${status}, "
                 status="${status}${local_ahead} ahead"
@@ -1171,6 +1175,7 @@ while IFS= read -r gitdir; do
         fi
         color="$PEACH"
         [ "$changed" -gt 0 ] && color="$YELLOW"
+        [ "$status" = "${stashes} stashed" ] && color="$MAUVE"
         [ -n "$op" ] && color="$RED"
         print_row "$name" "$status" "$color" "$display"
         dirty_count=$((dirty_count + 1))
