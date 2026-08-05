@@ -354,6 +354,35 @@ print_row() {
         printf " ${SURFACE}%s${RESET} %s%s${RESET}\n" "$dots" "$color" "$status"
 }
 
+# Resolve a repo's real git dir. In linked worktrees .git is a file holding
+# "gitdir: <path>"; plain repos have a .git directory.
+resolve_git_dir() {
+        local g="$1/.git"
+        if [ -f "$g" ]; then
+                local p
+                p=$(sed -n 's/^gitdir: //p' "$g" 2>/dev/null)
+                case "$p" in
+                /*) g="$p" ;;
+                ?*) g="$1/$p" ;;
+                *) return 1 ;;
+                esac
+        fi
+        [ -d "$g" ] && printf '%s\n' "$g"
+}
+
+# Name the operation a repo is in the middle of, if any. Marker files are
+# read directly instead of spawning git; this is what git itself checks.
+repo_operation() {
+        local g
+        g=$(resolve_git_dir "$1") || return 0
+        if [ -f "$g/MERGE_HEAD" ]; then echo "merging"
+        elif [ -d "$g/rebase-merge" ] || [ -d "$g/rebase-apply" ]; then echo "rebasing"
+        elif [ -f "$g/CHERRY_PICK_HEAD" ]; then echo "cherry-picking"
+        elif [ -f "$g/REVERT_HEAD" ]; then echo "reverting"
+        elif [ -f "$g/BISECT_LOG" ]; then echo "bisecting"
+        fi
+}
+
 # --- Dirty mode: local only, no GitHub ---
 if [ "$MODE" = "dirty" ]; then
         echo ""
@@ -389,16 +418,24 @@ if [ "$MODE" = "dirty" ]; then
                 changed=$(run_git -C "$repo_path" status --porcelain 2>/dev/null |
                         wc -l | tr -d ' ')
                 local_ahead=$(count_unpushed "$repo_path")
+                op=$(repo_operation "$repo_path")
 
-                [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && continue
+                [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && [ -z "$op" ] && continue
 
-                if [ "$local_ahead" -gt 0 ] && [ "$changed" -gt 0 ]; then
-                        print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW" "$display"
-                elif [ "$local_ahead" -gt 0 ]; then
-                        print_row "$name" "${local_ahead} ahead" "$PEACH" "$display"
-                else
-                        print_row "$name" "${changed} uncommitted" "$YELLOW" "$display"
+                status=""
+                [ -n "$op" ] && status="$op"
+                if [ "$local_ahead" -gt 0 ]; then
+                        [ -n "$status" ] && status="${status}, "
+                        status="${status}${local_ahead} ahead"
                 fi
+                if [ "$changed" -gt 0 ]; then
+                        [ -n "$status" ] && status="${status}, "
+                        status="${status}${changed} uncommitted"
+                fi
+                color="$PEACH"
+                [ "$changed" -gt 0 ] && color="$YELLOW"
+                [ -n "$op" ] && color="$RED"
+                print_row "$name" "$status" "$color" "$display"
                 dirty_count=$((dirty_count + 1))
 
         done < <(find "${SCAN_DIRS[@]}" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort -u)
@@ -455,6 +492,7 @@ if [ -n "$TARGET_REPO" ]; then
                 run_git -C "$t_local" fetch --quiet --prune 2>/dev/null || true
                 t_display="~${t_local#$HOME}"
                 t_changed=$(run_git -C "$t_local" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+                t_op=$(repo_operation "$t_local")
                 t_behind=0
                 t_ahead=0
                 while IFS= read -r branch; do
@@ -468,7 +506,11 @@ if [ -n "$TARGET_REPO" ]; then
 
                 t_status=""
                 t_color="$GREEN"
-                ((t_behind > 0)) && t_status="${t_behind} behind"
+                [ -n "$t_op" ] && t_status="$t_op"
+                if ((t_behind > 0)); then
+                        [ -n "$t_status" ] && t_status="${t_status}, "
+                        t_status="${t_status}${t_behind} behind"
+                fi
                 if ((t_ahead > 0)); then
                         [ -n "$t_status" ] && t_status="${t_status}, "
                         t_status="${t_status}${t_ahead} ahead"
@@ -480,6 +522,7 @@ if [ -n "$TARGET_REPO" ]; then
                 if [ -z "$t_status" ]; then t_status="synced"; else
                         t_color="$PEACH"
                         ((t_changed > 0)) && t_color="$YELLOW"
+                        [ -n "$t_op" ] && t_color="$RED"
                 fi
                 print_row "$t_name" "$t_status" "$t_color" "$t_display"
         else
@@ -656,6 +699,7 @@ has_unpushed=0
 not_local=0
 synced=0
 dirty_count=0
+op_count=0
 
 # Print a single commit line with author and optional diff-stat
 print_commit_line() {
@@ -778,9 +822,17 @@ check_repo() {
         local dirty
         dirty=$(run_git -C "$local_path" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
 
+        local op
+        op=$(repo_operation "$local_path")
+
         local status_parts=""
+        if [ -n "$op" ]; then
+                status_parts="$op"
+                op_count=$((op_count + 1))
+        fi
         if ((behind > 0)); then
-                status_parts="${behind} behind"
+                [ -n "$status_parts" ] && status_parts="${status_parts}, "
+                status_parts="${status_parts}${behind} behind"
                 needs_pull=$((needs_pull + 1))
         fi
         if ((ahead > 0)); then
@@ -813,6 +865,7 @@ check_repo() {
         if [ -n "$status_parts" ]; then
                 local color="$PEACH"
                 ((dirty > 0)) && color="$YELLOW"
+                [ -n "$op" ] && color="$RED"
                 print_row "$name" "$status_parts" "$color" "$display"
                 has_changes=true
         else
@@ -1018,8 +1071,9 @@ while IFS= read -r gitdir; do
         changed=$(run_git -C "$repo_path" status --porcelain 2>/dev/null |
                 wc -l | tr -d ' ')
         local_ahead=$(count_unpushed "$repo_path")
+        op=$(repo_operation "$repo_path")
 
-        [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && continue
+        [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && [ -z "$op" ] && continue
 
         if ! $has_local_changes; then
                 echo ""
@@ -1028,13 +1082,20 @@ while IFS= read -r gitdir; do
                 has_local_changes=true
         fi
 
-        if [ "$local_ahead" -gt 0 ] && [ "$changed" -gt 0 ]; then
-                print_row "$name" "${local_ahead} ahead, ${changed} uncommitted" "$YELLOW" "$display"
-        elif [ "$local_ahead" -gt 0 ]; then
-                print_row "$name" "${local_ahead} ahead" "$PEACH" "$display"
-        else
-                print_row "$name" "${changed} uncommitted" "$YELLOW" "$display"
+        status=""
+        [ -n "$op" ] && status="$op"
+        if [ "$local_ahead" -gt 0 ]; then
+                [ -n "$status" ] && status="${status}, "
+                status="${status}${local_ahead} ahead"
         fi
+        if [ "$changed" -gt 0 ]; then
+                [ -n "$status" ] && status="${status}, "
+                status="${status}${changed} uncommitted"
+        fi
+        color="$PEACH"
+        [ "$changed" -gt 0 ] && color="$YELLOW"
+        [ -n "$op" ] && color="$RED"
+        print_row "$name" "$status" "$color" "$display"
         dirty_count=$((dirty_count + 1))
 
 done < <(find "${SCAN_DIRS[@]}" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort -u)
@@ -1043,6 +1104,7 @@ done < <(find "${SCAN_DIRS[@]}" -maxdepth 4 -name ".git" -type d 2>/dev/null | s
 echo ""
 echo "  ${DIV}"
 parts=""
+[ $op_count -gt 0 ] && parts="${parts}${RED}${op_count} in progress${RESET} ${SURFACE}·${RESET} "
 [ $needs_pull -gt 0 ] && parts="${parts}${PEACH}${needs_pull} behind${RESET} ${SURFACE}·${RESET} "
 [ $has_unpushed -gt 0 ] && parts="${parts}${PEACH}${has_unpushed} ahead${RESET} ${SURFACE}·${RESET} "
 [ $dirty_count -gt 0 ] && parts="${parts}${YELLOW}${dirty_count} uncommitted${RESET} ${SURFACE}·${RESET} "

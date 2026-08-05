@@ -180,6 +180,10 @@ A Nerd Font glyph before each repo name marks its type (a legend is printed in t
 
 Glyphs need a [Nerd Font](https://www.nerdfonts.com/). Disable them with `--no-glyphs`, or override the characters/toggle in the config file. Repos with no GitHub metadata (local-only, in the "local changes" section) show no glyph.
 
+Repos stuck mid-operation (merge, rebase, cherry-pick, revert, bisect) are
+flagged in red, e.g. `rebasing, 2 uncommitted`, and counted as
+`N in progress` in the summary.
+
 The output width adapts to your terminal size.
 
 ---
