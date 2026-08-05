@@ -383,6 +383,26 @@ repo_operation() {
         fi
 }
 
+# Stash count from the stash reflog, no subprocess. Linked worktrees keep
+# shared state in the common dir, so follow the commondir pointer first
+# (drydock gets this wrong and reports 0 for worktrees).
+stash_count() {
+        local g c
+        g=$(resolve_git_dir "$1") || { echo 0; return; }
+        if [ -f "$g/commondir" ]; then
+                c=$(cat "$g/commondir" 2>/dev/null)
+                case "$c" in
+                /*) g="$c" ;;
+                ?*) g="$g/$c" ;;
+                esac
+        fi
+        if [ -f "$g/logs/refs/stash" ]; then
+                wc -l <"$g/logs/refs/stash" | tr -d ' '
+        else
+                echo 0
+        fi
+}
+
 # --- Dirty mode: local only, no GitHub ---
 if [ "$MODE" = "dirty" ]; then
         echo ""
@@ -419,8 +439,9 @@ if [ "$MODE" = "dirty" ]; then
                         wc -l | tr -d ' ')
                 local_ahead=$(count_unpushed "$repo_path")
                 op=$(repo_operation "$repo_path")
+                stashes=$(stash_count "$repo_path")
 
-                [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && [ -z "$op" ] && continue
+                [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && [ -z "$op" ] && [ "$stashes" -eq 0 ] && continue
 
                 status=""
                 [ -n "$op" ] && status="$op"
@@ -431,6 +452,10 @@ if [ "$MODE" = "dirty" ]; then
                 if [ "$changed" -gt 0 ]; then
                         [ -n "$status" ] && status="${status}, "
                         status="${status}${changed} uncommitted"
+                fi
+                if [ "$stashes" -gt 0 ]; then
+                        [ -n "$status" ] && status="${status}, "
+                        status="${status}${stashes} stashed"
                 fi
                 color="$PEACH"
                 [ "$changed" -gt 0 ] && color="$YELLOW"
@@ -700,6 +725,7 @@ not_local=0
 synced=0
 dirty_count=0
 op_count=0
+stash_total=0
 
 # Print a single commit line with author and optional diff-stat
 print_commit_line() {
@@ -824,6 +850,8 @@ check_repo() {
 
         local op
         op=$(repo_operation "$local_path")
+        local stashes
+        stashes=$(stash_count "$local_path")
 
         local status_parts=""
         if [ -n "$op" ]; then
@@ -845,6 +873,11 @@ check_repo() {
                 status_parts="${status_parts}${dirty} uncommitted"
                 dirty_count=$((dirty_count + 1))
         fi
+        if [ "$stashes" -gt 0 ]; then
+                [ -n "$status_parts" ] && status_parts="${status_parts}, "
+                status_parts="${status_parts}${stashes} stashed"
+                stash_total=$((stash_total + stashes))
+        fi
 
         # Append PR count if --prs and repo has open PRs
         local pr_text=""
@@ -865,6 +898,7 @@ check_repo() {
         if [ -n "$status_parts" ]; then
                 local color="$PEACH"
                 ((dirty > 0)) && color="$YELLOW"
+                [ "$status_parts" = "${stashes} stashed" ] && color="$MAUVE"
                 [ -n "$op" ] && color="$RED"
                 print_row "$name" "$status_parts" "$color" "$display"
                 has_changes=true
@@ -1072,8 +1106,9 @@ while IFS= read -r gitdir; do
                 wc -l | tr -d ' ')
         local_ahead=$(count_unpushed "$repo_path")
         op=$(repo_operation "$repo_path")
+        stashes=$(stash_count "$repo_path")
 
-        [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && [ -z "$op" ] && continue
+        [ "$changed" -eq 0 ] && [ "$local_ahead" -eq 0 ] && [ -z "$op" ] && [ "$stashes" -eq 0 ] && continue
 
         if ! $has_local_changes; then
                 echo ""
@@ -1092,6 +1127,11 @@ while IFS= read -r gitdir; do
                 [ -n "$status" ] && status="${status}, "
                 status="${status}${changed} uncommitted"
         fi
+        if [ "$stashes" -gt 0 ]; then
+                [ -n "$status" ] && status="${status}, "
+                status="${status}${stashes} stashed"
+                stash_total=$((stash_total + stashes))
+        fi
         color="$PEACH"
         [ "$changed" -gt 0 ] && color="$YELLOW"
         [ -n "$op" ] && color="$RED"
@@ -1108,6 +1148,7 @@ parts=""
 [ $needs_pull -gt 0 ] && parts="${parts}${PEACH}${needs_pull} behind${RESET} ${SURFACE}·${RESET} "
 [ $has_unpushed -gt 0 ] && parts="${parts}${PEACH}${has_unpushed} ahead${RESET} ${SURFACE}·${RESET} "
 [ $dirty_count -gt 0 ] && parts="${parts}${YELLOW}${dirty_count} uncommitted${RESET} ${SURFACE}·${RESET} "
+[ $stash_total -gt 0 ] && parts="${parts}${MAUVE}${stash_total} stashed${RESET} ${SURFACE}·${RESET} "
 [ $synced -gt 0 ] && parts="${parts}${GREEN}${synced} synced${RESET} ${SURFACE}·${RESET} "
 [ $not_local -gt 0 ] && parts="${parts}${OVERLAY}${not_local} not local${RESET} ${SURFACE}·${RESET} "
 $SHOW_PRS && [ $open_prs_total -gt 0 ] && parts="${parts}${MAUVE}${open_prs_total} open PRs${RESET} ${SURFACE}·${RESET} "

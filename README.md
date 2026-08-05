@@ -184,6 +184,9 @@ Repos stuck mid-operation (merge, rebase, cherry-pick, revert, bisect) are
 flagged in red, e.g. `rebasing, 2 uncommitted`, and counted as
 `N in progress` in the summary.
 
+Stashes count as forgotten work: a repo with stashed changes shows
+`N stashed` (mauve) even when otherwise clean, and the summary totals them.
+
 The output width adapts to your terminal size.
 
 ---
