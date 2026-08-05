@@ -4,6 +4,19 @@ set -eo pipefail
 REPO_DIR="${REPO_CHECK_DIR:-$(pwd)}"
 CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/repoz/config"
 
+# Hardened git wrapper. Never prompts for credentials (a single passphrase
+# prompt would hang the whole run), never takes optional locks (polling many
+# repos must not fight editors or GUI clients for index.lock), and fails
+# fast on unreachable SSH hosts instead of waiting on TCP timeouts.
+run_git() {
+        GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=true \
+                GIT_SSH_COMMAND='ssh -oBatchMode=yes -oConnectTimeout=5' \
+                git --no-optional-locks "$@"
+}
+
+# Max simultaneous background fetches (SSH servers throttle beyond this).
+FETCH_CAP=8
+
 # --- Defaults (overridden by config file) ---
 WORK_START=9
 WORK_END=18
@@ -51,7 +64,7 @@ done
 
 # If cwd sits inside a git repo, include that repo's toplevel so the
 # dirty-scan pass catches it when running from a subdirectory.
-_toplevel=$(git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null) || true
+_toplevel=$(run_git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null) || true
 [ -n "$_toplevel" ] && [ "$_toplevel" != "$REPO_DIR" ] && SCAN_DIRS+=("$_toplevel")
 
 # Catppuccin Mocha palette (printf for bash 3.2 compat)
@@ -352,17 +365,17 @@ if [ "$MODE" = "dirty" ]; then
                 local repo_path="$1" total=0
                 while IFS= read -r branch; do
                         [ -z "$branch" ] && continue
-                        git -C "$repo_path" rev-parse --abbrev-ref \
+                        run_git -C "$repo_path" rev-parse --abbrev-ref \
                                 "${branch}@{upstream}" >/dev/null 2>&1 || continue
                         local a
                         # Commits not reachable from ANY remote branch, not just this
                         # branch's own upstream — a branch merged elsewhere (e.g. a
                         # leftover worktree branch already landed on main) shouldn't
                         # count as "ahead" just because its own upstream is stale.
-                        a=$(git -C "$repo_path" rev-list --count \
+                        a=$(run_git -C "$repo_path" rev-list --count \
                                 "$branch" --not --remotes 2>/dev/null || echo 0)
                         total=$((total + a))
-                done < <(git -C "$repo_path" for-each-ref \
+                done < <(run_git -C "$repo_path" for-each-ref \
                         --format='%(refname:short)' refs/heads/ 2>/dev/null)
                 echo "$total"
         }
@@ -373,7 +386,7 @@ if [ "$MODE" = "dirty" ]; then
                 name=$(basename "$repo_path")
                 display="~${repo_path#$HOME}"
 
-                changed=$(git -C "$repo_path" status --porcelain 2>/dev/null |
+                changed=$(run_git -C "$repo_path" status --porcelain 2>/dev/null |
                         wc -l | tr -d ' ')
                 local_ahead=$(count_unpushed "$repo_path")
 
@@ -439,19 +452,19 @@ if [ -n "$TARGET_REPO" ]; then
                 -name ".git" 2>/dev/null)
 
         if [ -n "$t_local" ]; then
-                git -C "$t_local" fetch --quiet 2>/dev/null || true
+                run_git -C "$t_local" fetch --quiet --prune 2>/dev/null || true
                 t_display="~${t_local#$HOME}"
-                t_changed=$(git -C "$t_local" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+                t_changed=$(run_git -C "$t_local" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
                 t_behind=0
                 t_ahead=0
                 while IFS= read -r branch; do
                         [ -z "$branch" ] && continue
-                        up=$(git -C "$t_local" rev-parse --abbrev-ref "${branch}@{upstream}" 2>/dev/null) || continue
-                        bb=$(git -C "$t_local" rev-list --count "${branch}..${up}" 2>/dev/null || echo 0)
-                        aa=$(git -C "$t_local" rev-list --count "${branch}" --not --remotes 2>/dev/null || echo 0)
+                        up=$(run_git -C "$t_local" rev-parse --abbrev-ref "${branch}@{upstream}" 2>/dev/null) || continue
+                        bb=$(run_git -C "$t_local" rev-list --count "${branch}..${up}" 2>/dev/null || echo 0)
+                        aa=$(run_git -C "$t_local" rev-list --count "${branch}" --not --remotes 2>/dev/null || echo 0)
                         t_behind=$((t_behind + bb))
                         t_ahead=$((t_ahead + aa))
-                done < <(git -C "$t_local" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null)
+                done < <(run_git -C "$t_local" for-each-ref --format='%(refname:short)' refs/heads/ 2>/dev/null)
 
                 t_status=""
                 t_color="$GREEN"
@@ -701,10 +714,10 @@ print_commits() {
 
         local output=""
         if [ "$with_stat" = "true" ]; then
-                output=$(git -C "$local_path" log $author_flag \
+                output=$(run_git -C "$local_path" log $author_flag \
                         --format="COMMIT|%h|%aN|%s" --shortstat "$range" 2>/dev/null) || true
         else
-                output=$(git -C "$local_path" log $author_flag \
+                output=$(run_git -C "$local_path" log $author_flag \
                         --format="COMMIT|%h|%aN|%s" "$range" 2>/dev/null) || true
         fi
 
@@ -737,7 +750,7 @@ check_repo() {
         local display="~${local_path#$HOME}"
 
         if ! $skip_fetch; then
-                git -C "$local_path" fetch --quiet 2>/dev/null || true
+                run_git -C "$local_path" fetch --quiet --prune 2>/dev/null || true
         fi
 
         local behind=0 ahead=0
@@ -746,24 +759,24 @@ check_repo() {
         while IFS= read -r branch; do
                 [ -z "$branch" ] && continue
                 local upstream
-                upstream=$(git -C "$local_path" rev-parse --abbrev-ref \
+                upstream=$(run_git -C "$local_path" rev-parse --abbrev-ref \
                         "${branch}@{upstream}" 2>/dev/null) || continue
                 local b a
-                b=$(git -C "$local_path" rev-list --count \
+                b=$(run_git -C "$local_path" rev-list --count \
                         "${branch}..${upstream}" 2>/dev/null || echo 0)
-                a=$(git -C "$local_path" rev-list --count \
+                a=$(run_git -C "$local_path" rev-list --count \
                         "$branch" --not --remotes 2>/dev/null || echo 0)
                 behind=$((behind + b))
                 ahead=$((ahead + a))
                 if [ "$b" -gt 0 ] || [ "$a" -gt 0 ]; then
                         branches_info="${branches_info}${branch}|${upstream}|${b}|${a} "
                 fi
-        done < <(git -C "$local_path" for-each-ref \
+        done < <(run_git -C "$local_path" for-each-ref \
                 --format='%(refname:short)' refs/heads/ 2>/dev/null)
 
         # Check for uncommitted/untracked changes
         local dirty
-        dirty=$(git -C "$local_path" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+        dirty=$(run_git -C "$local_path" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
 
         local status_parts=""
         if ((behind > 0)); then
@@ -860,8 +873,16 @@ for name in "${active_repos[@]}"; do
 
         pass1_names+=("$name")
         pass1_paths+=("$local_path")
-        git -C "$local_path" fetch --quiet 2>/dev/null &
+        run_git -C "$local_path" fetch --quiet --prune 2>/dev/null &
         fetch_pids+=($!)
+        # Cap concurrency: when the batch is full, drain it before launching
+        # more (bash 3.2 has no wait -n, so batches of FETCH_CAP).
+        if [ "${#fetch_pids[@]}" -ge "$FETCH_CAP" ]; then
+                for pid in "${fetch_pids[@]}"; do
+                        wait "$pid" 2>/dev/null
+                done
+                fetch_pids=()
+        fi
 done
 
 # Wait for all pass 1 fetches
@@ -916,8 +937,16 @@ if [ ${#elsewhere_repos[@]} -gt 0 ]; then
                 elsewhere_found_paths+=("${local_path:-}")
 
                 if [ -n "$local_path" ]; then
-                        git -C "$local_path" fetch --quiet 2>/dev/null &
+                        run_git -C "$local_path" fetch --quiet --prune 2>/dev/null &
                         elsewhere_fetch_pids+=($!)
+                        # Cap concurrency: when the batch is full, drain it before
+                        # launching more (bash 3.2 has no wait -n).
+                        if [ "${#elsewhere_fetch_pids[@]}" -ge "$FETCH_CAP" ]; then
+                                for pid in "${elsewhere_fetch_pids[@]}"; do
+                                        wait "$pid" 2>/dev/null
+                                done
+                                elsewhere_fetch_pids=()
+                        fi
                 fi
         done
 
@@ -966,13 +995,13 @@ count_unpushed() {
         local repo_path="$1" total=0
         while IFS= read -r branch; do
                 [ -z "$branch" ] && continue
-                git -C "$repo_path" rev-parse --abbrev-ref \
+                run_git -C "$repo_path" rev-parse --abbrev-ref \
                         "${branch}@{upstream}" >/dev/null 2>&1 || continue
                 local a
-                a=$(git -C "$repo_path" rev-list --count \
+                a=$(run_git -C "$repo_path" rev-list --count \
                         "$branch" --not --remotes 2>/dev/null || echo 0)
                 total=$((total + a))
-        done < <(git -C "$repo_path" for-each-ref \
+        done < <(run_git -C "$repo_path" for-each-ref \
                 --format='%(refname:short)' refs/heads/ 2>/dev/null)
         echo "$total"
 }
@@ -986,7 +1015,7 @@ while IFS= read -r gitdir; do
         name=$(basename "$repo_path")
         display="~${repo_path#$HOME}"
 
-        changed=$(git -C "$repo_path" status --porcelain 2>/dev/null |
+        changed=$(run_git -C "$repo_path" status --porcelain 2>/dev/null |
                 wc -l | tr -d ' ')
         local_ahead=$(count_unpushed "$repo_path")
 

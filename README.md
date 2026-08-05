@@ -226,6 +226,10 @@ The three time slots are derived from `WORK_START` and `WORK_END`:
 
 **repoz** runs `git fetch` on active repos. If your remotes use SSH (`git@github.com:...`), you'll want your key loaded so you don't get passphrase prompts on every fetch.
 
+repoz never prompts mid-run: fetches run with prompts disabled and fail
+quietly for repos that would need interactive auth. If a repo stops showing
+behind counts, fetch it manually once to refresh credentials.
+
 **macOS**: store your passphrase in the Keychain once:
 
 ```sh
