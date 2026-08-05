@@ -179,16 +179,21 @@ Each commit line shows the author name. When a repo has divergence (behind, ahea
 The countable states are written as symbols, so the status column stays short
 even when a repo is in several states at once:
 
-| Symbol | Meaning |
-|--------|---------|
-| `2↓` | 2 commits behind the remote (peach) |
-| `1↑` | 1 commit not pushed anywhere (peach) |
-| `3!` | 3 uncommitted or untracked files (yellow) |
-| `1⚑` | 1 stash waiting (mauve) |
+| Symbol | Meaning | Color |
+|--------|---------|-------|
+| `2↓` | 2 commits behind the remote | peach |
+| `1↑` | 1 commit not pushed anywhere | peach |
+| `3!` | 3 uncommitted or untracked files | yellow |
+| `1⚑` | 1 stash waiting | mauve |
+| `2PR` | 2 open pull requests (needs `-p`) | mauve |
 
-They need no special font. Everything that is not a count stays a word:
-`synced`, `not cloned`, and the in-progress operations below. The summary
-footer also spells the counts out, so it doubles as the legend.
+They need no special font. Each symbol keeps its own color even when several
+share a row, so `1↑ 4!` reads as two separate facts rather than one blob, and
+the colors are the same ones the summary footer uses for those counts.
+
+Everything that is not a count stays a word: `synced`, `not cloned`, and the
+in-progress operations below. The summary footer also spells the counts out,
+so it doubles as the legend.
 
 A Nerd Font glyph before each repo name marks its type (a legend is printed in the summary footer):
 
