@@ -111,6 +111,7 @@ repoz [options]
 | `--update` | Reinstall repoz from your local clone (no pull) |
 | `--update --pull` | `git pull --ff-only` the clone first, then reinstall |
 | `-h, --help` | Show help |
+| `-v, --version` | Print the version and exit |
 
 ### Examples
 
@@ -132,9 +133,14 @@ By default, **repoz** searches for local clones under the current directory. Set
 REPO_CHECK_DIR=~/code repoz
 ```
 
-The machine-wide scan prunes common dependency and build directories
-(node_modules, vendor, target, venv, dist, build, Pods, and friends), so a
-repo cloned inside one of those, or itself named like one, is not found.
+Every scan prunes common dependency and build directories (node_modules,
+vendor, target, venv, dist, build, Pods, and friends), so a repo cloned inside
+one of those, or itself named like one, is not found. Hidden directories are
+otherwise traversed normally, which is how a clone at `~/.dotfiles` is picked
+up.
+
+The version is printed in dark grey at the bottom right of every run, so a
+pasted output says which build produced it.
 
 ---
 
@@ -249,9 +255,9 @@ The three time slots are derived from `WORK_START` and `WORK_END`:
 
 | Slot | Default | Description |
 |------|---------|-------------|
-| Work | 09:00 – 18:00 | `WORK_START` to `WORK_END` |
-| Evening | 18:00 – 00:00 | `WORK_END` to midnight |
-| Night | 00:00 – 09:00 | Midnight to `WORK_START` |
+| Work | 09:00 - 18:00 | `WORK_START` to `WORK_END` |
+| Evening | 18:00 - 00:00 | `WORK_END` to midnight |
+| Night | 00:00 - 09:00 | Midnight to `WORK_START` |
 
 ---
 
@@ -292,6 +298,28 @@ git remote set-url origin git@github.com:user/repo.git
 Works with personal repos and organization/team repos.
 
 ---
+
+## Relationship to fleetz
+
+[fleetz](https://github.com/Gaurgle/fleetz) is the interactive sibling: the same
+discovery rules and time-slot logic, rendered as a Rust TUI you act from rather
+than a dump you read.
+
+Reach for **repoz** when the output *is* the answer: a morning glance, a cron
+job, a pipe, one specific repo (`repoz /owner/repo`), or release status. Reach
+for **fleetz** when the answer leads to work: opening lazygit, cleaning up
+merged branches, watching CI.
+
+Note the cost difference, which is the opposite of what you would guess from
+"script versus TUI". repoz fetches every repo and queries the GitHub API on
+every single run, with no cache. fleetz caches the API behind a TTL and only
+fetches on demand, so it is the cheaper of the two to leave running.
+
+The two implement discovery separately, in two languages, which has already let
+them drift apart once. fleetz's test suite now runs `repoz -d` against a fixture
+tree and diffs the discovered paths against its own, so the next divergence
+fails a build instead of going unnoticed. If you change how repos are found
+here, expect that test to have an opinion.
 
 ## Also
 
