@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -eo pipefail
 
+REPOZ_VERSION="0.1.0"
+
 REPO_DIR="${REPO_CHECK_DIR:-$(pwd)}"
 CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/repoz/config"
 
@@ -139,6 +141,7 @@ Options:
   --update        Reinstall repoz from your local clone (no pull)
   --update --pull git pull --ff-only the clone first, then reinstall
   -h, --help      Show this help
+  -v, --version   Print the version and exit
 
 Status symbols (each keeps its own color, the same one the summary uses):
   2↓  commits behind the remote          peach
@@ -222,6 +225,10 @@ while [ $# -gt 0 ]; do
                 ;;
         -h | --help)
                 usage
+                exit 0
+                ;;
+        -v | --version)
+                echo "repoz ${REPOZ_VERSION}"
                 exit 0
                 ;;
         /*)
@@ -1225,4 +1232,12 @@ echo "  ${parts}"
 if $SHOW_GLYPHS; then
         echo "  ${GLYPH_PRIVATE_COLOR}${GLYPH_PRIVATE}${RESET} ${OVERLAY}private${RESET} · ${GLYPH_PUBLIC_COLOR}${GLYPH_PUBLIC}${RESET} ${OVERLAY}public${RESET} · ${GLYPH_ORG_COLOR}${GLYPH_ORG}${RESET} ${OVERLAY}org${RESET}   "
 fi
+# Version, flush right in the dimmest color the palette has: present when you
+# go looking for it (which pane of which build am I reading?), invisible when
+# you are not. Padding is computed by hand because printf's width counts the
+# escape sequence bytes, which would push the text off the right edge.
+version_text="repoz ${REPOZ_VERSION}"
+version_pad=$((TERM_W - ${#version_text} - 1))
+((version_pad < 2)) && version_pad=2
+printf "%*s${SURFACE}%s${RESET}\n" "$version_pad" '' "$version_text"
 echo ""
