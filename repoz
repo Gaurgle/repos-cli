@@ -16,6 +16,33 @@ run_git() {
                 git --no-optional-locks "$@"
 }
 
+# Abbreviate $HOME to ~ for display, leaving anything outside it alone.
+#
+# The obvious "~${p#$HOME}" is wrong for paths that are not under $HOME: the
+# prefix strip is a no-op and you get ~/opt/work/thing, which reads as a real
+# path and is not one. Reachable in normal use, since EXTRA_DIRS and
+# REPO_CHECK_DIR can both point anywhere.
+tilde_path() {
+        case "$1" in
+        "$HOME") printf '~' ;;
+        "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;;
+        *) printf '%s' "$1" ;;
+        esac
+}
+
+# Directory names never descended into, as a reusable `find` expression.
+# Pruning by NAME stops descent into dependency and build trees entirely (the
+# old -not -path filters still traversed them). Tradeoff: a repo literally
+# named e.g. "build" or "target" is skipped; acceptable for the speed win.
+# fleetz mirrors this list in discovery::PRUNE_DIRS -- keep the two in step.
+PRUNE_EXPR=(
+        -name Library -o -name .Trash -o -name .cache -o
+        -name node_modules -o -name vendor -o -name target -o
+        -name .venv -o -name venv -o -name dist -o -name build -o
+        -name Pods -o -name DerivedData -o -name .terraform -o
+        -name .gradle
+)
+
 # Max simultaneous background fetches (SSH servers throttle beyond this).
 FETCH_CAP=8
 
@@ -30,7 +57,12 @@ SHOW_GLYPHS=true
 GLYPH_ORG=""
 GLYPH_PRIVATE=""
 GLYPH_PUBLIC=""
-TERM_W=$(stty size </dev/tty 2>/dev/null | awk '{print $2}') || true
+# The redirect is on the command *group*, not on stty: when there is no
+# controlling terminal (cron, a pipe, CI) the shell itself fails to open
+# /dev/tty and prints the error before stty ever runs, so stty's own 2>/dev/null
+# never gets the chance to suppress it. Grouping catches the shell's message
+# too, which matters because piping and cron are repoz's whole reason to exist.
+TERM_W=$( { stty size </dev/tty; } 2>/dev/null | awk '{print $2}') || true
 : "${TERM_W:=${COLUMNS:-0}}"
 ((TERM_W < 40)) && TERM_W=$(tput cols 2>/dev/null || echo 80)
 ((TERM_W < 40)) && TERM_W=80
@@ -66,8 +98,14 @@ done
 
 # If cwd sits inside a git repo, include that repo's toplevel so the
 # dirty-scan pass catches it when running from a subdirectory.
+#
+# Compared against REPO_DIR's *physical* path: git resolves symlinks and
+# REPO_DIR may not, so a plain string compare thinks /var/x and /private/var/x
+# are different roots, scans the same tree twice, and prints every repo in it
+# twice. On macOS both /tmp and /var are symlinks, so this is easy to hit.
+_repo_dir_phys=$(cd "$REPO_DIR" 2>/dev/null && pwd -P) || _repo_dir_phys="$REPO_DIR"
 _toplevel=$(run_git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null) || true
-[ -n "$_toplevel" ] && [ "$_toplevel" != "$REPO_DIR" ] && SCAN_DIRS+=("$_toplevel")
+[ -n "$_toplevel" ] && [ "$_toplevel" != "$_repo_dir_phys" ] && SCAN_DIRS+=("$_toplevel")
 
 # Catppuccin Mocha palette (printf for bash 3.2 compat)
 PEACH=$(printf '\033[38;2;250;179;135m')      # behind / warning
@@ -517,13 +555,16 @@ release_status() {
 # traversed them). Tradeoff: a repo literally named e.g. "build" or
 # "target" under HOME is skipped; acceptable for the speed win.
 scan_home_git_dirs() {
-        find "$HOME" -maxdepth 4 \( \
-                -name Library -o -name .Trash -o -name .cache -o \
-                -name node_modules -o -name vendor -o -name target -o \
-                -name .venv -o -name venv -o -name dist -o -name build -o \
-                -name Pods -o -name DerivedData -o -name .terraform -o \
-                -name .gradle \) -prune -o \
+        find "$HOME" -maxdepth 4 \( "${PRUNE_EXPR[@]}" \) -prune -o \
                 -type d -name .git -print 2>/dev/null
+}
+
+# The same pruning for the configured scan dirs. It used to apply only to the
+# HOME sweep, so a dirty-mode run inside a JS or vendored tree happily listed
+# git checkouts under node_modules/ and vendor/ as if they were your repos.
+scan_dirs_git_dirs() {
+        find "${SCAN_DIRS[@]}" -maxdepth 4 \( "${PRUNE_EXPR[@]}" \) -prune -o \
+                -type d -name .git -print 2>/dev/null | sort -u
 }
 
 # --- Dirty mode: local only, no GitHub ---
@@ -556,7 +597,7 @@ if [ "$MODE" = "dirty" ]; then
         while IFS= read -r gitdir; do
                 repo_path="${gitdir%/.git}"
                 name=$(basename "$repo_path")
-                display="~${repo_path#$HOME}"
+                display=$(tilde_path "$repo_path")
 
                 changed=$(run_git -C "$repo_path" status --porcelain 2>/dev/null |
                         wc -l | tr -d ' ')
@@ -575,7 +616,7 @@ if [ "$MODE" = "dirty" ]; then
                 print_row "$name" "$status" "$color" "$display"
                 dirty_count=$((dirty_count + 1))
 
-        done < <(find "${SCAN_DIRS[@]}" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort -u)
+        done < <(scan_dirs_git_dirs)
 
         echo ""
         echo "  ${DIV}"
@@ -624,7 +665,7 @@ if [ -n "$TARGET_REPO" ]; then
 
         if [ -n "$t_local" ]; then
                 run_git -C "$t_local" fetch --quiet --prune 2>/dev/null || true
-                t_display="~${t_local#$HOME}"
+                t_display=$(tilde_path "$t_local")
                 t_changed=$(run_git -C "$t_local" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
                 t_op=$(repo_operation "$t_local")
                 t_behind=0
@@ -916,7 +957,7 @@ print_commits() {
 # Checks a repo: compare branches, print row + commits
 check_repo() {
         local name="$1" local_path="$2" skip_fetch="${3:-false}"
-        local display="~${local_path#$HOME}"
+        local display; display=$(tilde_path "$local_path")
 
         if ! $skip_fetch; then
                 run_git -C "$local_path" fetch --quiet --prune 2>/dev/null || true
@@ -1185,7 +1226,7 @@ while IFS= read -r gitdir; do
         case "$checked_paths" in *"|${repo_path}"*) continue ;; esac
 
         name=$(basename "$repo_path")
-        display="~${repo_path#$HOME}"
+        display=$(tilde_path "$repo_path")
 
         changed=$(run_git -C "$repo_path" status --porcelain 2>/dev/null |
                 wc -l | tr -d ' ')
@@ -1213,7 +1254,7 @@ while IFS= read -r gitdir; do
         print_row "$name" "$status" "$color" "$display"
         dirty_count=$((dirty_count + 1))
 
-done < <(find "${SCAN_DIRS[@]}" -maxdepth 4 -name ".git" -type d 2>/dev/null | sort -u)
+done < <(scan_dirs_git_dirs)
 
 # --- Summary ---
 echo ""
