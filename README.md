@@ -92,7 +92,7 @@ repoz [options]
 
 | Flag | Description |
 |------|-------------|
-| *(default)* | Find the latest time slot with activity and show those repos |
+| *(default)* | Show activity since the previous time slot boundary |
 | `--since DATE` | Show all activity since DATE (e.g. `2026-03-15`, `yesterday`, `3d`, `1w`) |
 | `--before DATE` | Only show repos pushed before DATE (same relative formats as `--since`) |
 | `-t, --today` | Show all activity since midnight |
@@ -127,7 +127,7 @@ repoz -d                                 # local dirty repos only
 repoz -t                                 # today
 ```
 
-By default, **repoz** searches for local clones under the current directory. Set `REPO_CHECK_DIR` to search somewhere specific:
+By default, **repoz** searches for local clones under `~/repos`, the same tree fleetz scans. Set `REPO_CHECK_DIR` to search somewhere else:
 
 ```sh
 REPO_CHECK_DIR=~/code repoz

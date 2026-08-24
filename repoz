@@ -3,7 +3,12 @@ set -eo pipefail
 
 REPOZ_VERSION="0.1.0"
 
-REPO_DIR="${REPO_CHECK_DIR:-$(pwd)}"
+# Where local clones are looked for: env > config file > ~/repos. The default
+# used to be $(pwd), which made the output depend on where you happened to be
+# standing -- run repoz from inside one repo and every other repo dropped out
+# of the primary section. fleetz reads the same REPO_CHECK_DIR env var and
+# falls back to the same ~/repos, so both tools scan one fixed tree.
+REPO_DIR="${REPO_CHECK_DIR:-$HOME/repos}"
 CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/repoz/config"
 
 # Hardened git wrapper. Never prompts for credentials (a single passphrase
@@ -28,6 +33,20 @@ tilde_path() {
         "$HOME"/*) printf '~/%s' "${1#"$HOME"/}" ;;
         *) printf '%s' "$1" ;;
         esac
+}
+
+# Resolve a directory to the spelling the filesystem itself uses: symlinks
+# expanded, and on a case-insensitive filesystem (macOS by default) the real
+# letter case too.
+#
+# bash's `pwd -P` only strips symlinks and hands back whatever case was typed,
+# so reaching ~/Repos as ~/repos yields ~/repos. Every path derived from that
+# root then disagrees with the ones `find $HOME` prints, and one directory
+# under two spellings is two scan roots and a duplicate row per repo.
+# `realpath` corrects the case; where it is missing (macOS before 12.3) fall
+# back to the symlink-only resolve, which is no worse than the old behaviour.
+real_dir() {
+        realpath "$1" 2>/dev/null || (cd "$1" 2>/dev/null && pwd -P) || printf '%s' "$1"
 }
 
 # Directory names never descended into, as a reusable `find` expression.
@@ -90,22 +109,47 @@ fi
 # Where 'repoz --update' reads the source from (env > config > default clone).
 REPOZ_SRC="${REPOZ_SRC:-$HOME/Repos/repoz}"
 
-# Build validated scan dirs (REPO_DIR + existing EXTRA_DIRS)
-SCAN_DIRS=("$REPO_DIR")
+# Resolve the roots in place, before anything derives a path from them: the
+# passes below mix paths built from $REPO_DIR and $EXTRA_DIRS with paths from
+# a $HOME sweep, and compare the two as strings to decide what has already
+# been shown. Two spellings of one directory defeats that comparison.
+REPO_DIR=$(real_dir "$REPO_DIR")
+_canon_extra=()
 for _d in "${EXTRA_DIRS[@]}"; do
-        [ -d "$_d" ] && SCAN_DIRS+=("$_d")
+        [ -d "$_d" ] || continue
+        _canon_extra+=("$(real_dir "$_d")")
+done
+EXTRA_DIRS=("${_canon_extra[@]}")
+
+# Append a scan root unless it is missing or already listed. The dedupe is
+# what stops one directory reached by two names -- /tmp and /private/tmp, or
+# ~/repos and ~/Repos -- from being walked twice and printing every repo
+# under it twice.
+SCAN_DIRS=()
+add_scan_dir() {
+        local candidate="$1" existing
+        [ -d "$candidate" ] || return 0
+        candidate=$(real_dir "$candidate")
+        for existing in "${SCAN_DIRS[@]}"; do
+                if [ "$existing" = "$candidate" ]; then
+                        return 0
+                fi
+        done
+        SCAN_DIRS+=("$candidate")
+}
+
+add_scan_dir "$REPO_DIR"
+for _d in "${EXTRA_DIRS[@]}"; do
+        add_scan_dir "$_d"
 done
 
 # If cwd sits inside a git repo, include that repo's toplevel so the
-# dirty-scan pass catches it when running from a subdirectory.
-#
-# Compared against REPO_DIR's *physical* path: git resolves symlinks and
-# REPO_DIR may not, so a plain string compare thinks /var/x and /private/var/x
-# are different roots, scans the same tree twice, and prints every repo in it
-# twice. On macOS both /tmp and /var are symlinks, so this is easy to hit.
-_repo_dir_phys=$(cd "$REPO_DIR" 2>/dev/null && pwd -P) || _repo_dir_phys="$REPO_DIR"
-_toplevel=$(run_git -C "$REPO_DIR" rev-parse --show-toplevel 2>/dev/null) || true
-[ -n "$_toplevel" ] && [ "$_toplevel" != "$_repo_dir_phys" ] && SCAN_DIRS+=("$_toplevel")
+# dirty-scan pass catches it when running from a subdirectory. Asked of the
+# real cwd, not of REPO_DIR: those were the same directory back when REPO_DIR
+# defaulted to $(pwd), and are not any more. add_scan_dir drops it again when
+# it is a root already being scanned, which is the common case.
+_toplevel=$(run_git rev-parse --show-toplevel 2>/dev/null) || true
+[ -n "$_toplevel" ] && add_scan_dir "$_toplevel"
 
 # Catppuccin Mocha palette (printf for bash 3.2 compat)
 PEACH=$(printf '\033[38;2;250;179;135m')      # behind / warning
@@ -155,7 +199,7 @@ usage() {
 Usage: repoz [options]
 
 Checks GitHub for recently pushed repos and compares with local state.
-Only checks repos found under the current directory (or REPO_CHECK_DIR).
+Only checks repos found under ~/repos (or REPO_CHECK_DIR).
 
 Modes (pick one):
   (default)       Show activity since the previous time slot
@@ -563,6 +607,9 @@ scan_home_git_dirs() {
 # HOME sweep, so a dirty-mode run inside a JS or vendored tree happily listed
 # git checkouts under node_modules/ and vendor/ as if they were your repos.
 scan_dirs_git_dirs() {
+        # No roots survived validation: `find` with no path argument would
+        # fall back to walking the cwd, which is not a root we were asked for.
+        [ ${#SCAN_DIRS[@]} -gt 0 ] || return 0
         find "${SCAN_DIRS[@]}" -maxdepth 4 \( "${PRUNE_EXPR[@]}" \) -prune -o \
                 -type d -name .git -print 2>/dev/null | sort -u
 }
@@ -758,18 +805,22 @@ else yesterday=$(date -d yesterday +%Y-%m-%d); fi
 
 case "$MODE" in
 auto)
-        # Find the latest date with any push activity from the API data,
-        # rather than assuming "yesterday evening". Handles weekends/days off.
-        latest_date=$(echo "$repos_json" | jq -r '
-          [ .data.viewer.repositories.nodes[]
-            | select(.pushedAt != null)
-            | (.pushedAt | split("T")[0])
-          ] | sort | last // empty
-        ')
-        if [ -n "$latest_date" ]; then
-                cutoff="${latest_date}T00:00:00"
-                header="${latest_date}"
+        # The cutoff is the slot boundary the clock has just crossed, which is
+        # what fleetz's time::auto_cutoff computes. Keep the two in step.
+        #
+        # This used to derive the cutoff from the newest pushedAt date in the
+        # API data and snap it to that date's midnight. One push today then
+        # moved the cutoff to today 00:00 and silently dropped everything from
+        # yesterday evening: a repo pushed at 22:05 and cloned this morning was
+        # nowhere in the default view, and only --since brought it back.
+        hour=$(date +%H)
+        hour=$((10#$hour))
+        if [ "$hour" -ge "$WORK_END" ]; then
+                # Evening: the day's work is the interesting window.
+                cutoff="${today}T$(printf '%02d' $WORK_START):00:00"
+                header="since ${today}  ${slot_label_evening}"
         else
+                # Work or night: pick up what landed after yesterday knocked off.
                 cutoff="${yesterday}T$(printf '%02d' $WORK_END):00:00"
                 header="since ${yesterday}  ${slot_label_evening}"
         fi
